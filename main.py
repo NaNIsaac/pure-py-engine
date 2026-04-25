@@ -11,7 +11,6 @@ SCREEN_SHAPE = 1024, 768
 WIDTH, HEIGHT = SCREEN_SHAPE
 BACKGROUND_COLOR = "#1B1B1B"
 
-
 class RigidBody:
     def __init__(
             self, 
@@ -68,11 +67,11 @@ class RigidBody:
     def set_valocity(self, vx: float, vy: float):
         self.v = Vec2(vx, vy)
 
-    def apply_impulse(self, impulse):
-        self.impulse: Vec2 = impulse
+    def apply_impulse(self, impulse: Vec2):
+        self.impulse += impulse
 
-    def apply_angular_impulse(self, angular_impulse):
-        self.angular_impluse: float  = angular_impulse
+    def apply_angular_impulse(self, angular_impulse: float):
+        self.angular_impulse += angular_impulse
 
     def _update_vertices(self):
         if self.default_vertices is None:
@@ -83,11 +82,12 @@ class RigidBody:
 
     def update(self, dt: float, times: int):
 
-        gravity = Vec2(0, -0.2)
+        gravity = Vec2(0, 0)
         sub_dt: float = dt / times
 
         force: Vec2 = self.impulse / sub_dt + gravity
         torque: float = self.angular_impulse / sub_dt
+        
         for _ in range(times):
             accel: Vec2 = force * self.inv_mass
             self.v: Vec2 = self.v + accel * sub_dt
@@ -96,10 +96,8 @@ class RigidBody:
             ang_accel: float = torque * self.inv_inertia
             self.w: float = self.w + ang_accel * sub_dt
             self.angle: float = (self.angle + self.w * sub_dt) % 360
-
         self.impulse: Vec2 = gravity
-        self.angular_impluse: float = 0
-
+        self.angular_impulse: float = 0
         self._update_vertices()
 
 
@@ -142,9 +140,7 @@ class Entity:
 
         if self.body.vertices is None:
             return self.screen_pos.dist_squre(point) <= self.screen_radius
-        
 
-    
     def draw(self, camera: Camera, color: ColorLike = 0) -> None:
 
         if self.body.vertices is None:
@@ -218,14 +214,18 @@ def main():
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                quit()
+                running = False
             
             if event.type == pygame.MOUSEWHEEL:
                 if event.y > 0:
                     camera.zoom *= 1.2
                 elif event.y < 0:
                     camera.zoom *= 0.8
-        keys = pygame.key.get_pressed()
+            
+            # if event.type == pygame.KEYDOWN:
+            #     if event.key == pygame.K_SPACE:
+                    
+        keys: pygame.key.ScancodeWrapper = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
             camera.x -= 5
         if keys[pygame.K_RIGHT]:
@@ -234,11 +234,13 @@ def main():
             camera.y -= 5
         if keys[pygame.K_UP]:
             camera.y += 5
+        if keys[pygame.K_SPACE]:
+            entity.body.apply_angular_impulse(1)
 
         dt = clock.tick(60) / 1000.0
         split_dt_factor = 3
         entity.update(dt, split_dt_factor, camera)
-
+        # print(f"{entity.body.angle}\r", end="")
         screen.fill(BACKGROUND_COLOR)
         # Draw objects
         entity.draw(camera, "blue")

@@ -1,5 +1,7 @@
 import math
 
+def sign(x: float) -> int:
+    return (x > 0) - (x < 0)
 
 class AABB:
     def __init__(self, min_x: float, min_y: float, max_x: float, max_y: float) -> None:
@@ -79,10 +81,6 @@ class Vec2:
 
     def to_tuple(self) -> tuple[float, float]:
         return (self.x, self.y)
-
-    @classmethod
-    def lex_comp(cls, a, b):
-        return a.x > b.x or (a.x == b.x and a.y > b.y)
 
     @classmethod
     def zero(cls) -> Vec2:
