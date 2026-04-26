@@ -6,6 +6,7 @@ import pygame
 from pygame.typing import ColorLike
 
 from gmath import AABB, Vec2
+from collide import point_in_convex
 
 SCREEN_SHAPE = 1024, 768
 WIDTH, HEIGHT = SCREEN_SHAPE
@@ -166,33 +167,35 @@ class Entity:
     def is_camera_collide(self, camera: Camera):
         return camera.aabb.is_overlap(self.body.get_aabb())
 
-    def react(self, events: list[pygame.event.Event]) -> None:
-        return
-        for event in events:
-            pass
+    def react(self) -> None:
+        if pygame.mouse.get_pressed()[0]:
+            mouse_pos = Vec2(*pygame.mouse.get_pos())
+            print(point_in_convex(mouse_pos, self.screen_vertices))
+            if point_in_convex(mouse_pos, self.screen_vertices):
+                points: list[tuple[float, float]] = [vertex.to_tuple() for vertex in screen_vertices]
+                pygame.draw.polygon(self.screen, (255, 255, 255), points, width=1)
     
     def update_viewport_shape(self, camera):
-        if not self.is_camera_collide(camera):
-            return
-
         if self.body.vertices is None:
-            x = camera.scale * (self.body.pos.x - camera.x) + WIDTH * 0.5
-            y = camera.scale * -(self.body.pos.y - camera.y) + HEIGHT * 0.5
+            x = camera.zoom * (self.body.pos.x - camera.x) + WIDTH * 0.5
+            y = camera.zoom * -(self.body.pos.y - camera.y) + HEIGHT * 0.5
             x, y = int(x), int(y)
 
             self.screen_pos = Vec2(x, y)
-            self.radius = camera.scale * self.body.size
+            self.radius = camera.zoom * self.body.size
             return
 
         self.screen_vertices: list[Vec2] = [
             Vec2(
-                camera.scale * (self.body.pos.x + vertex.x - camera.x) + WIDTH * 0.5,
-                camera.scale * -(self.body.pos.y + vertex.y - camera.y) + HEIGHT * 0.5
+                camera.zoom * (self.body.pos.x + vertex.x - camera.x) + WIDTH * 0.5,
+                camera.zoom * -(self.body.pos.y + vertex.y - camera.y) + HEIGHT * 0.5
             ) for vertex in self.body.vertices
         ]
 
     def update(self, dt: float, dt_times: int, camera) -> None:
-        self.update_viewport_shape(camera)
+        if self.is_camera_collide(camera):
+            self.update_viewport_shape(camera)
+            self.react()
         self.body.update(dt, dt_times)
 
 

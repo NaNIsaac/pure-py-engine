@@ -1,7 +1,11 @@
 import math
+from math import isclose
 
 def sign(x: float) -> int:
     return (x > 0) - (x < 0)
+
+def near_zero(n: float, tol: float = 1e-12) -> bool:
+    return -tol < n < tol
 
 class AABB:
     def __init__(self, min_x: float, min_y: float, max_x: float, max_y: float) -> None:
@@ -16,7 +20,7 @@ class AABB:
     def is_overlap(self, aabb: AABB) -> bool:
         return not (
             aabb.min_x > self.max_x or 
-            aabb.min_y < self.max_y or 
+            aabb.min_y > self.max_y or 
             aabb.max_x < self.min_x or 
             aabb.max_y < self.min_y
             )
@@ -68,7 +72,7 @@ class Vec2:
         return (self.x - other.x)**2 + (self.y - other.y)**2
 
     def cross(self, other: Vec2) -> float:
-        return self.x * other.y - self.y * other.x
+        return self.x * other.y - other.x * self.y
 
     def dot(self, other: Vec2) -> float:
         return self.x * other.x + self.y * other.y
@@ -85,3 +89,6 @@ class Vec2:
     @classmethod
     def zero(cls) -> Vec2:
         return cls(0, 0)
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.x}, {self.y})"

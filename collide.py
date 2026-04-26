@@ -1,6 +1,7 @@
-from math import isclose
-
-from gmath import Vec2, sign
+"""
+Only Works for counter clockwise oriented vertices
+"""
+from gmath import Vec2, sign, near_zero
 
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
     return (
@@ -11,23 +12,21 @@ def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
 
 def point_in_convex(p: Vec2, vertices: list[Vec2]) -> bool:
     
-    i, v = min(enumerate(vertices), key=lambda x: x.to_tuple()) # lex compare
-    vertices[:] = vertices[i:] + vertices[:i]
-    seq = []
-    for i in range(1, len(vertices)):
-        seq.append(vertices[i] - vertices[0])
-    translation = vertices[0]
+    origin = vertices[0]
+    segments = [vertices[i] - origin for i in range(1, len(vertices))]
 
-    def _point_in_convex(point: Vec2) -> bool:
-        point = point = translation
-        if (not isclose(seq[0].cross(point), 0)
-            and sign(seq[0].cross(point)) 
-            != sign(seq[0].cross(seq[-1]))
-            ):
-            return False
-        if (not isclose(seq[-1].cross(point), 0)
-            and sign(seq[-1].cross(point)) 
-            != sign(seq[-1].cross(seq[0]))
-            ):
-            return False
-        
+    point = p - origin
+    if segments[0].cross(point) < 0:
+        return False
+    if segments[-1].cross(point) > 0:
+        return False
+    low = 0
+    high = len(segments) - 1
+    while low + 1 < high:
+        mid = (low + high) // 2
+        if segments[mid].cross(point) >= 0:
+            low = mid
+        else:
+            high = mid
+    
+    return (segments[high] - segments[low]).cross(p - segments[low]) >= 0
