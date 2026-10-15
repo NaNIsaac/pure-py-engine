@@ -1,7 +1,7 @@
 """
 Only Works for counter clockwise oriented vertices
 """
-from gmath import Vec2, sign, near_zero
+from gmath import Vec2
 
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
     return (

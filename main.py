@@ -53,7 +53,7 @@ class RigidBody:
     def get_aabb(self) -> AABB:
         if self.vertices is None:
             return AABB.from_circle(self.pos, self.size)
-        return AABB.from_vertices(self.vertices)
+        return AABB.from_vertices([self.pos + vertex for vertex in self.vertices])
 
     def set_angle(self, angle: float):
         self.angle: float = angle
@@ -183,7 +183,7 @@ class Entity:
             x, y = int(x), int(y)
 
             self.screen_pos = Vec2(x, y)
-            self.radius = camera.zoom * self.body.size
+            self.screen_radius = camera.zoom * self.body.size
             return
 
         self.screen_vertices: list[Vec2] = [
@@ -243,11 +243,12 @@ def main():
 
         dt = clock.tick(60) / 1000.0
         split_dt_factor = 3
-        entity.update(dt, split_dt_factor, camera)
-        # print(f"{entity.body.angle}\r", end="")
         screen.fill(BACKGROUND_COLOR)
         # Draw objects
         entity.draw(camera, "blue")
+        # after draw so the hover outline from react() lands on top
+        entity.update(dt, split_dt_factor, camera)
+        # print(f"{entity.body.angle}\r", end="")
         pygame.display.flip()
 
 

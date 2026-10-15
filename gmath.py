@@ -1,5 +1,4 @@
 import math
-from math import isclose
 
 def sign(x: float) -> int:
     return (x > 0) - (x < 0)
@@ -31,10 +30,10 @@ class AABB:
     
     @classmethod
     def from_vertices(cls, vertices: list[Vec2]):
-        min_x: float = float("-inf")
-        min_y: float = float("-inf")
-        max_x: float = float("inf")
-        max_y: float = float("inf")
+        min_x: float = float("inf")
+        min_y: float = float("inf")
+        max_x: float = float("-inf")
+        max_y: float = float("-inf")
 
         for vertex in vertices:
             min_x = min(min_x, vertex.x)
