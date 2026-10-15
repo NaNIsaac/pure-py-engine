@@ -1,7 +1,7 @@
 [project]
 name = "pure-py-engine"
 version = "0.1.0"
-description = "Add your description here"
+description = "Early 2D rigid-body physics engine in plain Python with a pygame-ce demo"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
