@@ -29,4 +29,4 @@ def point_in_convex(p: Vec2, vertices: list[Vec2]) -> bool:
         else:
             high = mid
     
-    return (segments[high] - segments[low]).cross(p - segments[low]) >= 0
+    return (segments[high] - segments[low]).cross(point - segments[low]) >= 0

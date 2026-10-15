@@ -68,7 +68,7 @@ class Vec2:
     def square(self) -> float:
         return self.x**2 + self.y**2
 
-    def dist_squre(self, other: Vec2) -> float:
+    def dist_square(self, other: Vec2) -> float:
         return (self.x - other.x)**2 + (self.y - other.y)**2
 
     def cross(self, other: Vec2) -> float:

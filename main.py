@@ -1,4 +1,3 @@
-from re import X
 import math
 from dataclasses import dataclass
 
@@ -65,7 +64,7 @@ class RigidBody:
     def set_position(self, x: float, y: float):
         self.pos = Vec2(x, y)
     
-    def set_valocity(self, vx: float, vy: float):
+    def set_velocity(self, vx: float, vy: float):
         self.v = Vec2(vx, vy)
 
     def apply_impulse(self, impulse: Vec2):
@@ -140,7 +139,7 @@ class Entity:
             return False
 
         if self.body.vertices is None:
-            return self.screen_pos.dist_squre(point) <= self.screen_radius
+            return self.screen_pos.dist_square(point) <= self.screen_radius
 
     def draw(self, camera: Camera, color: ColorLike = 0) -> None:
 
@@ -170,9 +169,11 @@ class Entity:
     def react(self) -> None:
         if pygame.mouse.get_pressed()[0]:
             mouse_pos = Vec2(*pygame.mouse.get_pos())
-            print(point_in_convex(mouse_pos, self.screen_vertices))
-            if point_in_convex(mouse_pos, self.screen_vertices):
-                points: list[tuple[float, float]] = [vertex.to_tuple() for vertex in screen_vertices]
+            # the y-flip to screen space turns the counter-clockwise vertices clockwise
+            vertices = self.screen_vertices[::-1]
+            print(point_in_convex(mouse_pos, vertices))
+            if point_in_convex(mouse_pos, vertices):
+                points: list[tuple[float, float]] = [vertex.to_tuple() for vertex in self.screen_vertices]
                 pygame.draw.polygon(self.screen, (255, 255, 255), points, width=1)
     
     def update_viewport_shape(self, camera):
