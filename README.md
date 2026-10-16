@@ -1,5 +1,7 @@
 # pure-py-engine
 
+Moved into a private scratch repo; no longer maintained.
+
 Beginnings of a 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, polygon moment of inertia, sub-stepped impulse integration and a point-in-convex-polygon test.
 
 Status: early experiment. The demo shows one triangle. Holding the left mouse button prints the `point_in_convex` hit test against the triangle every frame (`True` while the cursor is inside it); the screen-space vertices are reversed before the test because the y-flip makes them clockwise.
