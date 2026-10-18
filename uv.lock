@@ -35,3 +35,12 @@ wheels = [
 name = "seltools"
 version = "0.1.0"
 source = { editable = "../seltools" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "more-itertools" },
+    { name = "numpy" },
+    { name = "pytest" },
+]

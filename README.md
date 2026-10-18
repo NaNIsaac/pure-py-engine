@@ -1,8 +1,8 @@
 # pure-py-engine
 
-Beginnings of a 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, polygon moment of inertia, sub-stepped impulse integration and a point-in-convex-polygon test.
+A 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, convex polygon geometry, separating-axis collision for polygons and circles, linear impulse response and sub-stepped integration.
 
-Status: early experiment. The demo shows one triangle. While the left mouse button is held over it, a white outline is drawn (`Entity.is_inside`, a screen-space hit test for circles and convex polygons).
+Status: early experiment. Contacts push bodies apart and bounce them along the contact normal; they do not yet cause spin or friction.
 
 ## Requirements
 
@@ -14,7 +14,9 @@ Python 3.14+, pygame-ce, `../seltools` (path dependency).
 uv run main.py
 ```
 
-Arrow keys pan the camera, mouse wheel zooms, holding Space applies angular impulse to spin the triangle.
+Five shapes bounce inside four static walls. Drag a shape with the left mouse button; it follows the cursor through its velocity, so it still collides. Arrow keys pan the camera, mouse wheel zooms, holding Space spins every body.
+
+Polygon vertices can be given in either winding and anywhere around the origin; `RigidBody` stores them counter-clockwise around their centroid and rejects non-convex or zero-area input with `ValueError`. `mass=math.inf` makes a body static.
 
 ## Test
 
@@ -25,8 +27,8 @@ uv run --with pytest pytest
 ## Structure
 
 ```
-main.py      RigidBody, Camera, Entity, game loop (1024x768, 60 fps)
-gmath.py     Vec2, AABB
-collide.py   point_in_triangle, point_in_convex (counter-clockwise vertices only)
-test_engine.py  hit tests, inertia, rotation, entity hit test
+main.py         RigidBody, contact, resolve, Camera, Entity, make_scene, game loop (1024x768, 60 fps)
+gmath.py        Vec2, AABB, polygon area / centroid / convexity, regular_polygon, rectangle
+collide.py      point_in_triangle, point_in_convex, SAT: polygons_collide, circle_polygon_collide, circles_collide
+test_engine.py  geometry, SAT, collision response, a 10 s scene that must stay inside the walls
 ```
