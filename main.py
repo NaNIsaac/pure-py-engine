@@ -149,12 +149,13 @@ def cradle() -> Scene:
         balls.append(ball)
     drop = balls[0].pos.y - rest_y
     start_energy = energy(world)
+    swing = world.gravity.length() * drop / balls[0].inv_mass  # energy the pulled ball brings in
     peak = 0.0
 
     def check() -> str:
         nonlocal peak
         peak = max(peak, balls[-1].pos.y - rest_y)
-        return f"last ball peak {peak:.2f} of {drop:.2f}, energy {energy(world) / start_energy - 1:+.2%}"
+        return f"last ball peak {peak:.2f} of {drop:.2f}, energy change {(energy(world) - start_energy) / swing:+.2%}"
 
     return world, colors, check
 
@@ -242,14 +243,11 @@ def draw(screen: pygame.Surface, camera: Camera, world: World, colors: dict[Body
         screen.blit(font.render(line, True, JOINT_COLOR), (8, 8 + 20 * k))
 
 
-def status(name: str, world: World, check: Callable[[], str], start_energy: float, step_ms: float) -> list[str]:
+def status(name: str, world: World, check: Callable[[], str], step_ms: float) -> list[str]:
     dynamic = [b for b in world.bodies if not b.is_static]
     return [
         f"{name}: {check()}",
-        (
-            f"step {step_ms:.1f} ms, awake {sum(b.awake for b in dynamic)}/{len(dynamic)}, "
-            f"contacts {len(world.arbiters)}, energy change {energy(world) - start_energy:+.1f}"
-        ),
+        f"step {step_ms:.1f} ms, awake {sum(b.awake for b in dynamic)}/{len(dynamic)}, contacts {len(world.arbiters)}",
         "  ".join(f"{k} {n}" for k, n in enumerate(SCENES, 1)) + "  |  R restart, P pause",
     ]
 
@@ -262,14 +260,13 @@ def save_screenshots(folder: Path, seconds: float = 3) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     for name, make in SCENES.items():
         world, colors, check = make()
-        start_energy = energy(world)
         step_ms = 0.0
         for _ in range(round(seconds / DT)):
             t = time.perf_counter()
             world.step(DT)
             step_ms = 1000 * (time.perf_counter() - t)
             check()  # the cradle's readout tracks a running peak
-        hud = status(name, world, check, start_energy, step_ms)
+        hud = status(name, world, check, step_ms)
         draw(screen, camera, world, colors, hud)
         pygame.image.save(screen, folder / f"{name}.png")
         print(*hud[:2], sep="\n")
@@ -285,7 +282,6 @@ def main():
 
     name = next(iter(SCENES))
     world, colors, check = SCENES[name]()
-    start_energy = energy(world)
     camera = Camera(0, 0, WIDTH, HEIGHT, zoom=10)
     drag: MouseJoint | None = None
     paused = False
@@ -302,7 +298,6 @@ def main():
                     if event.key != pygame.K_r:
                         name = list(SCENES)[number]
                     world, colors, check = SCENES[name]()
-                    start_energy = energy(world)
                     drag = None
                 if event.key == pygame.K_p:
                     paused = not paused
@@ -349,7 +344,7 @@ def main():
             world.step(DT)
             step_ms = 1000 * (time.perf_counter() - t)
 
-        draw(screen, camera, world, colors, status(name, world, check, start_energy, step_ms))
+        draw(screen, camera, world, colors, status(name, world, check, step_ms))
         pygame.display.flip()
 
 

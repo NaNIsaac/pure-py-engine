@@ -12,7 +12,7 @@ Status: experiment. Speculative contacts can stop a body a fraction of a step ea
 
 ## Requirements
 
-Python 3.14+, pygame-ce (demo only), `../seltools` (path dependency).
+Python 3.14+, pygame-ce (demo only), and [seltools](https://github.com/NaNIsaac/seltools), which uv installs from its `master` branch.
 
 ## Usage
 
@@ -42,7 +42,7 @@ Joint anchors are world points at the moment the joint is made; `RevoluteJoint.a
 uv run main.py
 ```
 
-Keys 1 to 5 switch scenes, R restarts the current one, P pauses. The top line of each scene is a readout of what it should show; the second line has the step time, awake bodies, contact pairs and the change in kinetic plus gravitational energy. Sleeping bodies are drawn dimmed.
+Keys 1 to 5 switch scenes, R restarts the current one, P pauses. The top line of each scene is a readout of what it should show; the second line has the step time, awake bodies and contact pairs. Sleeping bodies are drawn dimmed.
 
 In every scene, drag a body with the left mouse button (a `MouseJoint`), B fires a 400 units/s bullet, Space kicks everything upward, arrow keys pan, mouse wheel zooms.
 
@@ -59,7 +59,7 @@ In every scene, drag a body with the left mouse button (a `MouseJoint`), B fires
 ```text
 demo: slider at 14.00, stops at 0 and 14
 pyramid: top box drift 0.015, asleep 55/55
-cradle: last ball peak 12.33 of 12.50, energy +0.09%
+cradle: last ball peak 12.33 of 12.50, energy change -0.09%
 ramp: mu 0.89 holds: moved 0.00, mu 0.63 holds: moved 0.00, mu 0.55 slides: moved 3.48, mu 0.32 slides: moved 34.56
 bullets: got out: 0 of 8
 ```

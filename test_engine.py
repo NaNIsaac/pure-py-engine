@@ -27,7 +27,7 @@ from engine.collide import (
 )
 from engine.contact import collide
 from engine.gmath import polygon_centroid, polygon_signed_area, rectangle
-from main import HEIGHT, WIDTH, Camera, make_scene
+from main import HEIGHT, WIDTH, Camera, bullets, cradle, make_scene, pyramid, ramp
 
 # equilateral, side 2, centroid at origin, counter-clockwise
 TRIANGLE = [Vec2(-1, -math.sqrt(3) / 3), Vec2(1, -math.sqrt(3) / 3), Vec2(0, math.sqrt(3) * 2 / 3)]
@@ -296,6 +296,45 @@ def test_mouse_joint_drags_body_to_target():
     drag.target = (5, 3)
     run(world, 2)
     assert body.to_world(drag.local_b).dist_square(Vec2(5, 3)) < 0.1 ** 2  # soft: sags a little
+
+
+def test_pyramid_stands_and_sleeps():
+    world, _, _ = pyramid()
+    top = world.bodies[-1]
+    start = top.pos
+    run(world, 3)
+    assert (top.pos - start).length() < 0.05
+    assert not any(b.awake for b in world.bodies)
+
+
+def test_cradle_passes_the_swing_on():
+    world, _, _ = cradle()
+    first, *_, last = world.bodies[1:]
+    rest_y = last.pos.y
+    drop = first.pos.y - rest_y
+    peak = 0.0
+    for _ in range(240):  # a quarter swing down, a quarter up: about 3 s
+        world.step(1 / 60)
+        peak = max(peak, last.pos.y - rest_y)
+    assert peak > 0.95 * drop
+
+
+def test_ramp_holds_exactly_above_tan_30():
+    world, _, _ = ramp()
+    boxes = [(b, b.pos) for b in world.bodies[2:]]
+    run(world, 3)
+    for box, start in boxes:
+        moved = (box.pos - start).length()
+        if math.sqrt(box.friction) >= math.tan(math.pi / 6):
+            assert moved < 0.01
+        else:
+            assert moved > 1
+
+
+def test_bullets_stay_in_their_box():
+    world, _, _ = bullets()
+    run(world, 5)
+    assert all(abs(b.pos.x) < 40 and abs(b.pos.y) < 20 for b in world.bodies if not b.is_static)
 
 
 def test_scene_stays_inside_walls():

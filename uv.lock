@@ -14,7 +14,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "pygame-ce", specifier = ">=2.5.7" },
-    { name = "seltools", editable = "../seltools" },
+    { name = "seltools", git = "https://github.com/NaNIsaac/seltools?branch=master" },
 ]
 
 [[package]]
@@ -34,20 +34,4 @@ wheels = [
 [[package]]
 name = "seltools"
 version = "0.2.0"
-source = { editable = "../seltools" }
-
-[package.metadata]
-requires-dist = [{ name = "seltools-rs", marker = "extra == 'rust'", directory = "../seltools/rust" }]
-provides-extras = ["rust"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "more-itertools" },
-    { name = "numpy" },
-    { name = "pytest" },
-]
-docs = [
-    { name = "numpy" },
-    { name = "python-docs-theme" },
-    { name = "sphinx" },
-]
+source = { git = "https://github.com/NaNIsaac/seltools?branch=master#e9d3f5778ec1beaf007affc27b891c730cc76234" }
