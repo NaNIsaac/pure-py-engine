@@ -33,14 +33,21 @@ wheels = [
 
 [[package]]
 name = "seltools"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../seltools" }
 
 [package.metadata]
+requires-dist = [{ name = "seltools-rs", marker = "extra == 'rust'", directory = "../seltools/rust" }]
+provides-extras = ["rust"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "more-itertools" },
     { name = "numpy" },
     { name = "pytest" },
+]
+docs = [
+    { name = "numpy" },
+    { name = "python-docs-theme" },
+    { name = "sphinx" },
 ]
