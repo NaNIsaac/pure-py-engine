@@ -94,9 +94,9 @@ class Vec2:
         return self.x * other.x + self.y * other.y
 
     def rotate(self, angle: float) -> Vec2:
-        ang_rad = math.radians(angle)
-        sin = math.sin(ang_rad)
-        cos = math.cos(ang_rad)
+        """Counter-clockwise by `angle` radians."""
+        sin = math.sin(angle)
+        cos = math.cos(angle)
         return Vec2(self.x * cos - self.y * sin, self.x * sin + self.y * cos)
 
     def to_tuple(self) -> tuple[float, float]:

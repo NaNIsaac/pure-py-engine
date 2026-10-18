@@ -10,9 +10,13 @@ from gmath import Vec2
 
 
 class Contact(NamedTuple):
-    """`normal` is unit length and points from the first shape to the second."""
+    """`normal` is unit length and points from the first shape to the second.
+
+    `points` holds one or two world-space contact points.
+    """
     normal: Vec2
     depth: float
+    points: tuple[Vec2, ...] = ()
 
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
     return all((v - u).cross(p - u) > 0 for u, v in circular_pairwise((a, b, c)))
@@ -68,14 +72,49 @@ def _edge_normals(vertices: list[Vec2]):
     return ((b - a).perp().normalized() for a, b in circular_pairwise(vertices))
 
 
+def _facing_edge(vertices: list[Vec2], direction: Vec2) -> tuple[Vec2, Vec2]:
+    """The edge whose outward normal points most along `direction`."""
+    return max(circular_pairwise(vertices), key=lambda e: (e[1] - e[0]).perp().normalized().dot(direction))
+
+
+def _clip(points: list[Vec2], axis: Vec2, offset: float) -> list[Vec2]:
+    """Keep the part of a point or segment where axis . x >= offset."""
+    dist = [axis.dot(x) - offset for x in points]
+    kept = [x for x, d in zip(points, dist) if d >= 0]
+    if len(points) == 2 and dist[0] * dist[1] < 0:
+        p, q = points
+        kept.append(p + (q - p) * (dist[0] / (dist[0] - dist[1])))
+    return kept
+
+
+def _clip_points(a: list[Vec2], b: list[Vec2], normal: Vec2) -> tuple[Vec2, ...]:
+    """Box2D-style: clip the incident edge against the reference edge's side planes."""
+    edge_a, edge_b = _facing_edge(a, normal), _facing_edge(b, -normal)
+    def alignment(e, n):
+        return abs((e[1] - e[0]).normalized().dot(n))
+    # the reference edge is the one more perpendicular to the normal; ties go to `a`
+    if alignment(edge_a, normal) <= alignment(edge_b, normal) + 1e-9:
+        ref, inc = edge_a, edge_b
+    else:
+        ref, inc = edge_b, edge_a
+    tangent = (ref[1] - ref[0]).normalized()
+    points = _clip(inc, tangent, tangent.dot(ref[0]))
+    points = _clip(points, -tangent, -tangent.dot(ref[1]))
+    face = tangent.perp()
+    inside = tuple(x for x in points if face.dot(x - ref[0]) <= 1e-9)
+    # ponytail: degenerate clip falls back to the deepest vertex of b
+    return inside or (min(b, key=normal.dot),)
+
+
 def polygons_collide(a: list[Vec2], b: list[Vec2]) -> Contact | None:
     """Convex polygons in world space."""
-    return _min_overlap(
+    hit = _min_overlap(
         [*_edge_normals(a), *_edge_normals(b)],
         lambda axis: _project(a, axis),
         lambda axis: _project(b, axis),
         _mean(a), _mean(b),
     )
+    return None if hit is None else hit._replace(points=_clip_points(a, b, hit.normal))
 
 
 def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> Contact | None:
@@ -84,12 +123,13 @@ def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> 
     axes = [*_edge_normals(polygon)]
     if closest.dist_square(center) > 0:
         axes.append((closest - center).normalized())
-    return _min_overlap(
+    hit = _min_overlap(
         axes,
         lambda axis: (center.dot(axis) - radius, center.dot(axis) + radius),
         lambda axis: _project(polygon, axis),
         center, _mean(polygon),
     )
+    return None if hit is None else hit._replace(points=(center + hit.normal * radius,))
 
 
 def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float) -> Contact | None:
@@ -98,4 +138,4 @@ def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float) -> Contact | None:
     if dist >= ra + rb:
         return None
     normal = gap / dist if dist > 0 else Vec2(1, 0)
-    return Contact(normal, ra + rb - dist)
+    return Contact(normal, ra + rb - dist, (a + normal * ra,))

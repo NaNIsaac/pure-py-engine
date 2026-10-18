@@ -1,8 +1,8 @@
 # pure-py-engine
 
-A 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, convex polygon geometry, separating-axis collision for polygons and circles, linear impulse response and sub-stepped integration.
+A 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, convex polygon geometry, separating-axis collision for polygons and circles, impulse response with spin and Coulomb friction, and sub-stepped integration. Angles are in radians.
 
-Status: early experiment. Contacts push bodies apart and bounce them along the contact normal; they do not yet cause spin or friction.
+Status: early experiment. Contacts push bodies apart, then apply one normal + friction impulse at the mean contact point (Box2D-style edge clipping), so off-center hits spin bodies. No resting-contact solver or stacking yet.
 
 ## Requirements
 

@@ -43,7 +43,7 @@ def test_inertia_matches_equilateral_formula():
 
 def test_vertices_follow_angle_back_to_zero():
     body = RigidBody(1, 1, vertices=TRIANGLE)
-    body.set_angle(90)
+    body.set_angle(math.pi / 2)
     body.update(1, 1)
     body.set_angle(0)
     body.update(1, 1)
@@ -75,7 +75,7 @@ def test_polygon_normalized_ccw_and_centered():
 
 
 def test_initial_angle_applied():
-    body = RigidBody(1, 1, angle=90, vertices=rectangle(4, 2))
+    body = RigidBody(1, 1, angle=math.pi / 2, vertices=rectangle(4, 2))
     assert math.isclose(body.get_aabb().max_y, 2)
 
 
@@ -84,14 +84,24 @@ def square(x, y):
 
 
 def test_sat():
-    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(Vec2(1, 0), 0.5)
+    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(Vec2(1, 0), 0.5, (Vec2(0.5, 1), Vec2(0.5, -1)))
     assert polygons_collide(square(0, 0), square(2.5, 0)) is None
     assert polygons_collide(square(1.5, 0.2), square(0, 0)).normal == Vec2(-1, 0)
-    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(Vec2(0, -1), 0.5)
+    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(Vec2(0, -1), 0.5, (Vec2(0, 0.5),))
     assert circle_polygon_collide(Vec2(2, 2), 1, square(0, 0)) is None  # corner gap: sqrt(2) - 1
     hit = circle_polygon_collide(Vec2(1.6, 1.6), 1, square(0, 0))
     assert math.isclose(hit.depth, 1 - 0.6 * math.sqrt(2))
-    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(Vec2(1, 0), 0.5)
+    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(Vec2(1, 0), 0.5, (Vec2(1, 0),))
+
+
+def test_contact_points_clip_to_overlap():
+    # half-overlapping faces: the incident edge is clipped to the reference edge
+    hit = polygons_collide(square(0, 0), square(1.8, 1))
+    assert sorted(p.to_tuple() for p in hit.points) == [(0.8, 0), (0.8, 1)]
+    # corner into a face: a single point at the corner
+    corner = [Vec2(2.3, 0.5) + v.rotate(math.pi / 4) for v in rectangle(2, 2)]
+    (point,) = polygons_collide(square(0, 0), corner).points
+    assert math.isclose(point.x, 2.3 - math.sqrt(2)) and math.isclose(point.y, 0.5)
 
 
 def moving(body, x, vx):
@@ -131,3 +141,36 @@ def test_scene_stays_inside_walls():
         for a, b in combinations(entities, 2):
             resolve(a.body, b.body)
     assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in bodies)
+
+
+def corner_hit(friction=0.3, restitution=0.5):
+    """A diamond's corner strikes the upper half of a resting square's right face."""
+    a = RigidBody(1, 1, vertices=rectangle(2, 2))
+    b = RigidBody(1, 2, angle=math.pi / 4, vertices=rectangle(2, 2))
+    b.set_position(2.3, 0.5)
+    b.set_velocity(-4, 1)
+    pos = a.pos, b.pos
+    assert resolve(a, b, restitution, friction)
+    return a, b, pos
+
+
+def test_corner_hit_spins():
+    a, b, _ = corner_hit()
+    assert a.w > 0  # pushed left above its center: counter-clockwise
+    assert b.w != 0  # friction along the face torques the diamond
+
+
+def test_corner_hit_conserves_momentum_and_energy():
+    a, b, (pa, pb) = corner_hit(friction=0, restitution=1)
+    ma, mb, ia, ib = 1, 2, 1 / a.inv_inertia, 1 / b.inv_inertia
+
+    def totals(va, wa, vb, wb):
+        momentum = va * ma + vb * mb
+        spin = ma * pa.cross(va) + ia * wa + mb * pb.cross(vb) + ib * wb  # about the origin
+        energy = (ma * va.square() + ia * wa * wa + mb * vb.square() + ib * wb * wb) / 2
+        return momentum.x, momentum.y, spin, energy
+
+    assert a.w != 0
+    before = totals(Vec2(0, 0), 0, Vec2(-4, 1), 0)
+    after = totals(a.v, a.w, b.v, b.w)
+    assert all(math.isclose(x, y, abs_tol=1e-12) for x, y in zip(before, after))

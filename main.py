@@ -23,8 +23,8 @@ class RigidBody:
     """A circle of radius `size`, or a convex polygon when `vertices` is given.
 
     Polygon vertices may be in either winding and anywhere around the origin;
-    they are stored counter-clockwise around their centroid. `mass=math.inf`
-    makes the body static.
+    they are stored counter-clockwise around their centroid. `angle` and the
+    angular velocity `w` are in radians. `mass=math.inf` makes the body static.
     """
 
     def __init__(
@@ -112,7 +112,7 @@ class RigidBody:
 
             ang_accel: float = torque * self.inv_inertia
             self.w: float = self.w + ang_accel * sub_dt
-            self.angle: float = (self.angle + self.w * sub_dt) % 360
+            self.angle: float = (self.angle + self.w * sub_dt) % math.tau
         self.impulse: Vec2 = gravity
         self.angular_impulse: float = 0
         self._update_vertices()
@@ -129,26 +129,58 @@ def contact(a: RigidBody, b: RigidBody) -> Contact | None:
             return circle_polygon_collide(a.pos, a.size, b.world_vertices())
         case _, None:
             hit = circle_polygon_collide(b.pos, b.size, a.world_vertices())
-            return None if hit is None else Contact(-hit.normal, hit.depth)
+            return None if hit is None else hit._replace(normal=-hit.normal)
         case _:
             return polygons_collide(a.world_vertices(), b.world_vertices())
 
 
-def resolve(a: RigidBody, b: RigidBody, restitution: float = 0.5) -> bool:
-    """Push overlapping bodies apart and bounce them. True if they touched."""
-    # ponytail: linear response only, no friction or spin from contacts; add contact points + angular impulse when rotation must react
+def _point_velocity(body: RigidBody, r: Vec2) -> Vec2:
+    """Velocity of the body point at offset `r` from its center: v + w x r."""
+    return body.v + r.perp() * -body.w
+
+
+def _apply(body: RigidBody, r: Vec2, impulse: Vec2) -> None:
+    body.v += impulse * body.inv_mass
+    body.w += r.cross(impulse) * body.inv_inertia
+
+
+def resolve(a: RigidBody, b: RigidBody, restitution: float = 0.5, friction: float = 0.3) -> bool:
+    """Push overlapping bodies apart, bounce and spin them. True if they touched.
+
+    `friction` is one Coulomb coefficient used for both static and kinetic friction.
+    """
     hit = contact(a, b)
     total = a.inv_mass + b.inv_mass
     if hit is None or total == 0:
         return False
-    normal, depth = hit
+    normal, depth, points = hit
+    # ponytail: one impulse at the mean contact point, exact for 1 point and for symmetric 2-point faces; iterate per point if stacks jitter
+    point = sum(points, Vec2.zero()) / len(points)
+    ra, rb = point - a.pos, point - b.pos
+
+    def relative_velocity() -> Vec2:
+        return _point_velocity(b, rb) - _point_velocity(a, ra)
+
+    def effective_inv_mass(direction: Vec2) -> float:
+        return total + ra.cross(direction) ** 2 * a.inv_inertia + rb.cross(direction) ** 2 * b.inv_inertia
+
+    closing = relative_velocity().dot(normal)
+    if closing < 0:
+        j = -(1 + restitution) * closing / effective_inv_mass(normal)
+        _apply(a, ra, normal * -j)
+        _apply(b, rb, normal * j)
+
+        slip = relative_velocity()
+        slip -= normal * slip.dot(normal)
+        if slip.square() > 1e-18:
+            tangent = slip.normalized()
+            jt = -slip.dot(tangent) / effective_inv_mass(tangent)
+            jt = max(-friction * j, min(jt, friction * j))
+            _apply(a, ra, tangent * -jt)
+            _apply(b, rb, tangent * jt)
+
     a.pos -= normal * (depth * a.inv_mass / total)
     b.pos += normal * (depth * b.inv_mass / total)
-    closing = (b.v - a.v).dot(normal)
-    if closing < 0:
-        j = -(1 + restitution) * closing / total
-        a.v -= normal * (j * a.inv_mass)
-        b.v += normal * (j * b.inv_mass)
     return True
 
 
