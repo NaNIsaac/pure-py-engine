@@ -6,7 +6,7 @@ from seltools import circular_pairs
 from gmath import Vec2
 
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
-    return all((u - p).cross(u - v) > 0 for u, v in circular_pairs((a, b, c)))
+    return all((v - u).cross(p - u) > 0 for u, v in circular_pairs((a, b, c)))
 
 def point_in_convex(p: Vec2, vertices: list[Vec2]) -> bool:
     

@@ -75,8 +75,6 @@ class RigidBody:
     def _update_vertices(self):
         if self.default_vertices is None:
             return
-        if self.angle == 0:
-            return
         self.vertices = [vertex.rotate(self.angle) for vertex in self.default_vertices]
 
     def update(self, dt: float, times: int):
@@ -133,12 +131,12 @@ class Entity:
         self.screen_radius: float = 0
         self.screen_vertices: list[Vec2] | None = None
 
-    def is_inside(self, point: Vec2):
-        if not self.body.get_aabb().is_point_inside(point):
-            return False
-
+    def is_inside(self, point: Vec2) -> bool:
+        """Hit test in screen space, against the last update_viewport_shape."""
         if self.body.vertices is None:
-            return self.screen_pos.dist_square(point) <= self.screen_radius
+            return self.screen_pos.dist_square(point) <= self.screen_radius ** 2
+        # the y-flip to screen space turns the counter-clockwise vertices clockwise
+        return point_in_convex(point, self.screen_vertices[::-1])
 
     def draw(self, camera: Camera, color: ColorLike = 0) -> None:
 
@@ -166,14 +164,13 @@ class Entity:
         return camera.aabb.is_overlap(self.body.get_aabb())
 
     def react(self) -> None:
-        if pygame.mouse.get_pressed()[0]:
-            mouse_pos = Vec2(*pygame.mouse.get_pos())
-            # the y-flip to screen space turns the counter-clockwise vertices clockwise
-            vertices = self.screen_vertices[::-1]
-            print(point_in_convex(mouse_pos, vertices))
-            if point_in_convex(mouse_pos, vertices):
-                points: list[tuple[float, float]] = [vertex.to_tuple() for vertex in self.screen_vertices]
-                pygame.draw.polygon(self.screen, (255, 255, 255), points, width=1)
+        if not (pygame.mouse.get_pressed()[0] and self.is_inside(Vec2(*pygame.mouse.get_pos()))):
+            return
+        if self.body.vertices is None:
+            pygame.draw.circle(self.screen, (255, 255, 255), self.screen_pos.to_tuple(), self.screen_radius, width=1)
+            return
+        points: list[tuple[float, float]] = [vertex.to_tuple() for vertex in self.screen_vertices]
+        pygame.draw.polygon(self.screen, (255, 255, 255), points, width=1)
     
     def update_viewport_shape(self, camera):
         if self.body.vertices is None:
