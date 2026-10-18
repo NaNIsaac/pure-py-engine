@@ -1,4 +1,8 @@
 import math
+from dataclasses import dataclass
+
+from seltools import circular_pairwise, circular_windowed
+
 
 def sign(x: float) -> int:
     return (x > 0) - (x < 0)
@@ -24,6 +28,9 @@ class AABB:
             aabb.max_y < self.min_y
             )
     
+    def expanded(self, margin: float) -> AABB:
+        return AABB(self.min_x - margin, self.min_y - margin, self.max_x + margin, self.max_y + margin)
+
     @classmethod
     def from_circle(cls, center: Vec2, radius: float) -> AABB:
         return cls(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
@@ -44,10 +51,10 @@ class AABB:
         return cls(min_x, min_y, max_x, max_y)
 
 
+@dataclass(frozen=True, slots=True)
 class Vec2:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+    x: float
+    y: float
     
     def __mul__(self, a: float) -> Vec2:
         return Vec2(a * self.x, a * self.y)
@@ -64,6 +71,24 @@ class Vec2:
     def __sub__(self, other: Vec2) -> Vec2:
         return Vec2(self.x - other.x, self.y - other.y)
 
+    def __neg__(self) -> Vec2:
+        return Vec2(-self.x, -self.y)
+
+    def __iter__(self):
+        """Unpacks as `x, y = v`, so `Vec2(*v)` accepts a Vec2 or any pair."""
+        yield self.x
+        yield self.y
+
+    def length(self) -> float:
+        return math.hypot(self.x, self.y)
+
+    def normalized(self) -> Vec2:
+        return self / self.length()
+
+    def perp(self) -> Vec2:
+        """Rotated -90 degrees: the outward normal of a counter-clockwise edge."""
+        return Vec2(self.y, -self.x)
+
     def square(self) -> float:
         return self.x**2 + self.y**2
 
@@ -77,9 +102,9 @@ class Vec2:
         return self.x * other.x + self.y * other.y
 
     def rotate(self, angle: float) -> Vec2:
-        ang_rad = math.radians(angle)
-        sin = math.sin(ang_rad)
-        cos = math.cos(ang_rad)
+        """Counter-clockwise by `angle` radians."""
+        sin = math.sin(angle)
+        cos = math.cos(angle)
         return Vec2(self.x * cos - self.y * sin, self.x * sin + self.y * cos)
 
     def to_tuple(self) -> tuple[float, float]:
@@ -89,5 +114,45 @@ class Vec2:
     def zero(cls) -> Vec2:
         return cls(0, 0)
     
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.x}, {self.y})"
+
+def polygon_signed_area(vertices: list[Vec2]) -> float:
+    """Positive for counter-clockwise vertices."""
+    return 0.5 * sum(a.cross(b) for a, b in circular_pairwise(vertices))
+
+
+def polygon_centroid(vertices: list[Vec2]) -> Vec2:
+    weighted = sum(((a + b) * a.cross(b) for a, b in circular_pairwise(vertices)), Vec2.zero())
+    return weighted / (6 * polygon_signed_area(vertices))
+
+
+def is_convex(vertices: list[Vec2]) -> bool:
+    """For counter-clockwise vertices; collinear points count as convex."""
+    return all((b - a).cross(c - b) >= 0 for a, b, c in circular_windowed(vertices, 3))
+
+
+def centered_convex(vertices: list[Vec2]) -> list[Vec2]:
+    """Counter-clockwise copy with the centroid moved to the origin.
+
+    The collision tests and the inertia formula assume both.
+    """
+    area = polygon_signed_area(vertices)
+    if near_zero(area):
+        raise ValueError("polygon has no area")
+    if area < 0:
+        vertices = vertices[::-1]
+    if not is_convex(vertices):
+        raise ValueError("polygon is not convex")
+    c = polygon_centroid(vertices)
+    return [v - c for v in vertices]
+
+
+def regular_polygon(sides: int, radius: float) -> list[Vec2]:
+    """Counter-clockwise, centered on the origin, first vertex on +x."""
+    step = 2 * math.pi / sides
+    return [Vec2(radius * math.cos(k * step), radius * math.sin(k * step)) for k in range(sides)]
+
+
+def rectangle(width: float, height: float) -> list[Vec2]:
+    """Counter-clockwise, centered on the origin."""
+    w, h = width / 2, height / 2
+    return [Vec2(-w, -h), Vec2(w, -h), Vec2(w, h), Vec2(-w, h)]
