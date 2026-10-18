@@ -299,7 +299,7 @@ def test_mouse_joint_drags_body_to_target():
 
 
 def test_scene_stays_inside_walls():
-    world, _ = make_scene()
+    world, _, _ = make_scene()
     run(world, 10)
     assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in world.bodies if not b.is_static)
 

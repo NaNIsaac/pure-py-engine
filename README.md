@@ -1,6 +1,6 @@
 # pure-py-engine
 
-A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies besides `seltools`; the pygame-ce demo lives in `main.py`.
+A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies besides `seltools`; the pygame-ce demo and check scenes live in `main.py`.
 
 - Shapes: circles and convex polygons, separating-axis collision with Box2D-style edge clipping (up to two contact points, each with its own depth).
 - Solver: sequential impulses with accumulated clamping, warm started from the previous step; Coulomb friction, restitution above an impact-speed threshold, Baumgarte position correction.
@@ -42,7 +42,33 @@ Joint anchors are world points at the moment the joint is made; `RevoluteJoint.a
 uv run main.py
 ```
 
-Loose shapes, a stack that falls asleep (drawn dimmed), a hanging chain, a motorised windmill, a welded L, a spring, and a slider on a diagonal rail with end stops. Drag any body with the left mouse button (a `MouseJoint`), B fires a 400 units/s bullet, Space kicks everything upward, arrow keys pan, mouse wheel zooms.
+Keys 1 to 5 switch scenes, R restarts the current one, P pauses. The top line of each scene is a readout of what it should show; the second line has the step time, awake bodies, contact pairs and the change in kinetic plus gravitational energy. Sleeping bodies are drawn dimmed.
+
+In every scene, drag a body with the left mouse button (a `MouseJoint`), B fires a 400 units/s bullet, Space kicks everything upward, arrow keys pan, mouse wheel zooms.
+
+| Key | Scene | What a working engine shows |
+|---|---|---|
+| 1 | demo | Loose shapes, a stack, a hanging chain, a motorised windmill, a welded L, a spring, a slider on a diagonal rail; the slider stays between its stops at 0 and 14 |
+| 2 | pyramid | 55 boxes in 10 rows stay up and fall asleep; the top box drifts by a few hundredths |
+| 3 | cradle | Newton's cradle with elastic, frictionless balls on rods: the last ball rises almost as high as the first fell, and energy stays within a fraction of a percent |
+| 4 | ramp | Boxes on a 30 degree slope: those with a friction coefficient of at least tan 30 = 0.577 (green) hold, the others (red) slide |
+| 5 | bullets | Eight bullets at 100 to 800 units/s in a box of 0.2 thick walls: none get out, even after hitting each other |
+
+`uv run main.py --save docs` runs each scene for 3 seconds without a window and saves the last frame. The frames below came from that command; their readouts were:
+
+```text
+demo: slider at 14.00, stops at 0 and 14
+pyramid: top box drift 0.015, asleep 55/55
+cradle: last ball peak 12.33 of 12.50, energy +0.09%
+ramp: mu 0.89 holds: moved 0.00, mu 0.63 holds: moved 0.00, mu 0.55 slides: moved 3.48, mu 0.32 slides: moved 34.56
+bullets: got out: 0 of 8
+```
+
+| | |
+|---|---|
+| ![demo](docs/demo.png) | ![pyramid](docs/pyramid.png) |
+| ![cradle](docs/cradle.png) | ![ramp](docs/ramp.png) |
+| ![bullets](docs/bullets.png) | |
 
 ## Test
 
@@ -59,6 +85,7 @@ engine/body.py       Body: shape, mass, cached world vertices / AABB, impulses, 
 engine/contact.py    narrowphase dispatch, Arbiter (persistent contact, friction, warm start)
 engine/joints.py     revolute, weld, distance, prismatic, mouse joints; limits and motors
 engine/world.py      World: broadphase, islands and sleeping, solver loop
-main.py              pygame demo: Camera, scene, drawing, input
+main.py              pygame demo: Camera, check scenes and their readouts, drawing, input, --save
+docs/                one frame of each scene, from main.py --save docs
 test_engine.py       geometry, SAT, response, conservation, stacking, sleeping, tunnelling, each joint, the demo scene
 ```
