@@ -11,3 +11,6 @@ dependencies = [
 
 [tool.uv.sources]
 seltools = { git = "https://github.com/NaNIsaac/seltools", branch = "main" }
+
+[tool.ruff]
+line-length = 100
