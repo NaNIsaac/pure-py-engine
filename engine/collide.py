@@ -6,17 +6,23 @@ from typing import NamedTuple
 
 from seltools import circular_pairwise
 
-from gmath import Vec2
+from .gmath import Vec2
+
+# clipped points this close outside the reference face are kept, so a resting
+# face keeps both points while it rocks by a hair
+CONTACT_MARGIN = 0.02
 
 
 class Contact(NamedTuple):
     """`normal` is unit length and points from the first shape to the second.
 
-    `points` holds one or two world-space contact points.
+    `points` holds one or two world-space contact points; `depths[i]` is how far
+    `points[i]` sits inside the other shape (negative: just outside).
     """
     normal: Vec2
     depth: float
     points: tuple[Vec2, ...] = ()
+    depths: tuple[float, ...] = ()
 
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
     return all((v - u).cross(p - u) > 0 for u, v in circular_pairwise((a, b, c)))
@@ -87,8 +93,9 @@ def _clip(points: list[Vec2], axis: Vec2, offset: float) -> list[Vec2]:
     return kept
 
 
-def _clip_points(a: list[Vec2], b: list[Vec2], normal: Vec2) -> tuple[Vec2, ...]:
+def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact) -> Contact:
     """Box2D-style: clip the incident edge against the reference edge's side planes."""
+    normal = hit.normal
     edge_a, edge_b = _facing_edge(a, normal), _facing_edge(b, -normal)
     def alignment(e, n):
         return abs((e[1] - e[0]).normalized().dot(n))
@@ -101,9 +108,12 @@ def _clip_points(a: list[Vec2], b: list[Vec2], normal: Vec2) -> tuple[Vec2, ...]
     points = _clip(inc, tangent, tangent.dot(ref[0]))
     points = _clip(points, -tangent, -tangent.dot(ref[1]))
     face = tangent.perp()
-    inside = tuple(x for x in points if face.dot(x - ref[0]) <= 1e-9)
-    # ponytail: degenerate clip falls back to the deepest vertex of b
-    return inside or (min(b, key=normal.dot),)
+    kept = [(x, depth) for x in points if (depth := face.dot(ref[0] - x)) >= -CONTACT_MARGIN]
+    if not kept:
+        # ponytail: degenerate clip falls back to the deepest vertex of b
+        kept = [(min(b, key=normal.dot), hit.depth)]
+    points, depths = zip(*kept)
+    return hit._replace(points=points, depths=depths)
 
 
 def polygons_collide(a: list[Vec2], b: list[Vec2]) -> Contact | None:
@@ -114,7 +124,7 @@ def polygons_collide(a: list[Vec2], b: list[Vec2]) -> Contact | None:
         lambda axis: _project(b, axis),
         _mean(a), _mean(b),
     )
-    return None if hit is None else hit._replace(points=_clip_points(a, b, hit.normal))
+    return None if hit is None else _clip_points(a, b, hit)
 
 
 def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> Contact | None:
@@ -129,7 +139,7 @@ def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> 
         lambda axis: _project(polygon, axis),
         center, _mean(polygon),
     )
-    return None if hit is None else hit._replace(points=(center + hit.normal * radius,))
+    return None if hit is None else hit._replace(points=(center + hit.normal * radius,), depths=(hit.depth,))
 
 
 def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float) -> Contact | None:
@@ -138,4 +148,5 @@ def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float) -> Contact | None:
     if dist >= ra + rb:
         return None
     normal = gap / dist if dist > 0 else Vec2(1, 0)
-    return Contact(normal, ra + rb - dist, (a + normal * ra,))
+    depth = ra + rb - dist
+    return Contact(normal, depth, (a + normal * ra,), (depth,))

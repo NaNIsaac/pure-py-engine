@@ -71,6 +71,11 @@ class Vec2:
     def __neg__(self) -> Vec2:
         return Vec2(-self.x, -self.y)
 
+    def __iter__(self):
+        """Unpacks as `x, y = v`, so `Vec2(*v)` accepts a Vec2 or any pair."""
+        yield self.x
+        yield self.y
+
     def length(self) -> float:
         return math.hypot(self.x, self.y)
 

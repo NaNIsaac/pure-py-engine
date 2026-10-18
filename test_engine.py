@@ -5,22 +5,37 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 from itertools import combinations
 
-import pygame
 import pytest
 
-from collide import (
+from engine import (
+    Body,
     Contact,
+    DistanceJoint,
+    MouseJoint,
+    PrismaticJoint,
+    RevoluteJoint,
+    Vec2,
+    WeldJoint,
+    World,
+)
+from engine.collide import (
     circle_polygon_collide,
     circles_collide,
     point_in_convex,
     point_in_triangle,
     polygons_collide,
 )
-from gmath import Vec2, polygon_centroid, polygon_signed_area, rectangle
-from main import HEIGHT, WIDTH, Camera, Entity, RigidBody, contact, make_scene, resolve
+from engine.contact import collide
+from engine.gmath import polygon_centroid, polygon_signed_area, rectangle
+from main import HEIGHT, WIDTH, Camera, make_scene
 
 # equilateral, side 2, centroid at origin, counter-clockwise
 TRIANGLE = [Vec2(-1, -math.sqrt(3) / 3), Vec2(1, -math.sqrt(3) / 3), Vec2(0, math.sqrt(3) * 2 / 3)]
+
+
+def run(world: World, seconds: float, dt: float = 1 / 60) -> None:
+    for _ in range(round(seconds / dt)):
+        world.step(dt)
 
 
 def test_point_in_triangle():
@@ -38,45 +53,43 @@ def test_point_in_convex():
 
 def test_inertia_matches_equilateral_formula():
     # I = m * s^2 / 12 about the centroid
-    assert math.isclose(1 / RigidBody(1, 1, vertices=TRIANGLE).inv_inertia, 4 / 12)
+    assert math.isclose(1 / Body.polygon(TRIANGLE).inv_inertia, 4 / 12)
 
 
-def test_vertices_follow_angle_back_to_zero():
-    body = RigidBody(1, 1, vertices=TRIANGLE)
-    body.set_angle(math.pi / 2)
-    body.update(1, 1)
-    body.set_angle(0)
-    body.update(1, 1)
-    assert math.isclose(body.vertices[0].x, TRIANGLE[0].x)
+def test_world_vertices_follow_pose():
+    body = Body.polygon(TRIANGLE)
+    body.angle = math.pi / 2
+    assert math.isclose(body.vertices[0].y, TRIANGLE[0].x)
+    body.angle = 0
+    body.pos = Vec2(5, 0)
+    assert math.isclose(body.vertices[0].x, TRIANGLE[0].x + 5)
+    assert math.isclose(body.aabb.min_x, 4)
 
 
-def test_entity_hit_test_in_screen_space():
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    camera = Camera(0, 0, WIDTH, HEIGHT)
-    center = Vec2(WIDTH / 2, HEIGHT / 2)
-    for body in (RigidBody(2, 1), RigidBody(1, 1, vertices=TRIANGLE)):
-        entity = Entity(body, screen)
-        entity.update_viewport_shape(camera)
-        assert entity.is_inside(center)
-        assert not entity.is_inside(Vec2(0, 0))
+def test_contains_and_camera_round_trip():
+    camera = Camera(3, -2, WIDTH, HEIGHT)
+    point = Vec2(1.5, 2.5)
+    assert camera.to_world(camera.to_screen(point)) == point
+    for body in (Body.circle(2), Body.polygon(TRIANGLE)):
+        assert body.contains((0, 0))
+        assert not body.contains((5, 5))
 
 
 def test_polygon_normalized_ccw_and_centered():
     shifted_cw = [Vec2(v.x + 7, v.y - 3) for v in reversed(TRIANGLE)]
-    body = RigidBody(1, 1, vertices=shifted_cw)
-    assert polygon_signed_area(body.vertices) > 0
-    c = polygon_centroid(body.vertices)
+    body = Body.polygon(shifted_cw)
+    assert polygon_signed_area(body.local_vertices) > 0
+    c = polygon_centroid(body.local_vertices)
     assert math.isclose(c.x, 0, abs_tol=1e-12) and math.isclose(c.y, 0, abs_tol=1e-12)
     assert math.isclose(body.inv_inertia, 3.0)
     with pytest.raises(ValueError):
-        RigidBody(1, 1, vertices=[Vec2(0, 0), Vec2(2, 0), Vec2(1, 0.2), Vec2(1, 2)])
+        Body.polygon([(0, 0), (2, 0), (1, 0.2), (1, 2)])
     with pytest.raises(ValueError):
-        RigidBody(1, 1, vertices=[Vec2(0, 0), Vec2(1, 0), Vec2(2, 0)])
+        Body.polygon([(0, 0), (1, 0), (2, 0)])
 
 
 def test_initial_angle_applied():
-    body = RigidBody(1, 1, angle=math.pi / 2, vertices=rectangle(4, 2))
-    assert math.isclose(body.get_aabb().max_y, 2)
+    assert math.isclose(Body.box(4, 2, angle=math.pi / 2).aabb.max_y, 2)
 
 
 def square(x, y):
@@ -84,14 +97,14 @@ def square(x, y):
 
 
 def test_sat():
-    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(Vec2(1, 0), 0.5, (Vec2(0.5, 1), Vec2(0.5, -1)))
+    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(Vec2(1, 0), 0.5, (Vec2(0.5, 1), Vec2(0.5, -1)), (0.5, 0.5))
     assert polygons_collide(square(0, 0), square(2.5, 0)) is None
     assert polygons_collide(square(1.5, 0.2), square(0, 0)).normal == Vec2(-1, 0)
-    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(Vec2(0, -1), 0.5, (Vec2(0, 0.5),))
+    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(Vec2(0, -1), 0.5, (Vec2(0, 0.5),), (0.5,))
     assert circle_polygon_collide(Vec2(2, 2), 1, square(0, 0)) is None  # corner gap: sqrt(2) - 1
     hit = circle_polygon_collide(Vec2(1.6, 1.6), 1, square(0, 0))
     assert math.isclose(hit.depth, 1 - 0.6 * math.sqrt(2))
-    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(Vec2(1, 0), 0.5, (Vec2(1, 0),))
+    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(Vec2(1, 0), 0.5, (Vec2(1, 0),), (0.5,))
 
 
 def test_contact_points_clip_to_overlap():
@@ -104,73 +117,188 @@ def test_contact_points_clip_to_overlap():
     assert math.isclose(point.x, 2.3 - math.sqrt(2)) and math.isclose(point.y, 0.5)
 
 
-def moving(body, x, vx):
-    body.set_position(x, 0)
-    body.set_velocity(vx, 0)
-    return body
-
-
-def test_resolve_elastic_head_on():
-    a, b = moving(RigidBody(1, 1), -0.9, 3), moving(RigidBody(1, 1), 0.9, -1)
-    assert resolve(a, b, restitution=1)
+def test_elastic_head_on():
+    world = World()
+    a = world.add(Body.circle(1, pos=(-0.9, 0), v=(3, 0), restitution=1))
+    b = world.add(Body.circle(1, pos=(0.9, 0), v=(-1, 0), restitution=1))
+    world.step(1 / 60)
     assert math.isclose(a.v.x, -1) and math.isclose(b.v.x, 3)
-    assert contact(a, b) is None
 
 
-def test_resolve_conserves_momentum():
-    a = moving(RigidBody(1, 2, vertices=rectangle(2, 2)), 0, 2)
-    b = moving(RigidBody(1, 1), 1.8, -4)
-    resolve(a, b)
-    assert math.isclose(2 * a.v.x + b.v.x, 2 * 2 + -4, abs_tol=1e-12)
+def test_momentum_conserved():
+    world = World()
+    a = world.add(Body.box(2, 2, mass=2, v=(2, 0)))
+    b = world.add(Body.circle(1, pos=(1.8, 0.3), v=(-4, 0)))
+    world.step(1 / 60)
+    momentum = a.v * 2 + b.v
+    assert math.isclose(momentum.x, 0, abs_tol=1e-12) and math.isclose(momentum.y, 0, abs_tol=1e-12)
 
 
 def test_static_wall_does_not_move():
-    wall = RigidBody(0, math.inf, vertices=rectangle(2, 10))
-    ball = moving(RigidBody(1, 1), 1.5, -5)
-    resolve(wall, ball, restitution=1)
+    world = World()
+    wall = world.add(Body.box(2, 10, static=True))
+    ball = world.add(Body.circle(1, pos=(1.5, 0), v=(-5, 0), restitution=1))
+    world.step(1 / 60)
     assert wall.pos == Vec2(0, 0) and wall.v == Vec2(0, 0)
     assert math.isclose(ball.v.x, 5)
 
 
-def test_scene_stays_inside_walls():
-    entities = make_scene(pygame.Surface((1, 1)))
-    bodies = [e.body for e in entities if e.body.inv_mass > 0]
-    for _ in range(600):
-        for e in entities:
-            e.body.update(1 / 60, 3)
-        for a, b in combinations(entities, 2):
-            resolve(a.body, b.body)
-    assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in bodies)
-
-
 def corner_hit(friction=0.3, restitution=0.5):
     """A diamond's corner strikes the upper half of a resting square's right face."""
-    a = RigidBody(1, 1, vertices=rectangle(2, 2))
-    b = RigidBody(1, 2, angle=math.pi / 4, vertices=rectangle(2, 2))
-    b.set_position(2.3, 0.5)
-    b.set_velocity(-4, 1)
-    pos = a.pos, b.pos
-    assert resolve(a, b, restitution, friction)
-    return a, b, pos
+    world = World()
+    a = world.add(Body.box(2, 2, friction=friction, restitution=restitution))
+    b = world.add(Body.box(2, 2, mass=2, angle=math.pi / 4, pos=(2.3, 0.5), v=(-4, 1),
+                           friction=friction, restitution=restitution))
+    world.step(1 / 60)
+    return a, b
 
 
 def test_corner_hit_spins():
-    a, b, _ = corner_hit()
+    a, b = corner_hit()
     assert a.w > 0  # pushed left above its center: counter-clockwise
     assert b.w != 0  # friction along the face torques the diamond
 
 
 def test_corner_hit_conserves_momentum_and_energy():
-    a, b, (pa, pb) = corner_hit(friction=0, restitution=1)
+    a, b = corner_hit(friction=0, restitution=1)
     ma, mb, ia, ib = 1, 2, 1 / a.inv_inertia, 1 / b.inv_inertia
 
-    def totals(va, wa, vb, wb):
+    def totals(pa, va, wa, pb, vb, wb):
         momentum = va * ma + vb * mb
         spin = ma * pa.cross(va) + ia * wa + mb * pb.cross(vb) + ib * wb  # about the origin
         energy = (ma * va.square() + ia * wa * wa + mb * vb.square() + ib * wb * wb) / 2
         return momentum.x, momentum.y, spin, energy
 
     assert a.w != 0
-    before = totals(Vec2(0, 0), 0, Vec2(-4, 1), 0)
-    after = totals(a.v, a.w, b.v, b.w)
-    assert all(math.isclose(x, y, abs_tol=1e-12) for x, y in zip(before, after))
+    # free flight keeps pos x v constant, so the start pose pairs with the start velocities
+    before = totals(Vec2(0, 0), Vec2(0, 0), 0, Vec2(2.3, 0.5), Vec2(-4, 1), 0)
+    after = totals(a.pos, a.v, a.w, b.pos, b.v, b.w)
+    assert all(math.isclose(x, y, abs_tol=1e-9) for x, y in zip(before, after))
+
+
+def test_broadphase_matches_brute_force():
+    world = World()
+    for k in range(40):
+        x, y = (k * 7.3) % 20, (k * 3.1) % 12
+        world.add(Body.box(2, 1.5, pos=(x, y), angle=k) if k % 2 else Body.circle(1, pos=(x, y)))
+    world._collide()
+    brute = {frozenset(p) for p in combinations(world.bodies, 2) if collide(*p) is not None}
+    assert {frozenset(p) for p in world.arbiters} == brute
+    assert len(brute) > 10
+
+
+def floor_world(**kwargs) -> World:
+    world = World(gravity=(0, -10), **kwargs)
+    world.add(Body.box(40, 2, pos=(0, -1), static=True))
+    return world
+
+
+def test_stack_rests_and_sleeps():
+    world = floor_world()
+    boxes = [world.add(Body.box(2, 2, pos=(0, 1 + 2 * k))) for k in range(5)]
+    run(world, 3)
+    for k, box in enumerate(boxes):
+        assert abs(box.pos.y - (1 + 2 * k)) < 0.05 and abs(box.pos.x) < 0.01
+    assert not any(box.awake for box in boxes)
+
+
+def test_sleeping_body_wakes_when_hit_or_pushed():
+    world = floor_world()
+    box = world.add(Body.box(2, 2, pos=(0, 1)))
+    run(world, 1)
+    assert not box.awake
+    box.apply_impulse((5, 0))
+    assert box.awake and box.v.x == 5
+    run(world, 2)
+    assert not box.awake
+    ball = world.add(Body.circle(0.5, pos=(box.pos.x, 6)))
+    woke = False
+    for _ in range(120):
+        world.step(1 / 60)
+        woke |= box.awake
+    assert woke
+    assert abs(ball.pos.y - 2.5) < 0.05  # landed on the box instead of passing through
+
+
+def test_sleep_can_be_disabled():
+    world = floor_world()
+    world.time_to_sleep = math.inf
+    box = world.add(Body.box(2, 2, pos=(0, 1)))
+    run(world, 2)
+    assert box.awake
+
+
+def test_revolute_pendulum_keeps_its_pin():
+    world = World(gravity=(0, -10))
+    ground = world.add(Body.circle(0.1, static=True))
+    bob = world.add(Body.box(0.5, 0.5, pos=(3, 0)))
+    joint = world.add(RevoluteJoint(ground, bob, (2, 0)))
+    for _ in range(300):
+        world.step(1 / 60)
+        pin_a, pin_b = joint.anchors()
+        assert pin_a.dist_square(pin_b) < 0.02 ** 2
+    assert bob.pos.dist_square(Vec2(3, 0)) > 0.1  # it swung
+
+
+def test_revolute_motor_reaches_speed():
+    world = World()
+    hub = world.add(Body.circle(0.1, static=True))
+    blade = world.add(Body.box(6, 0.5))
+    world.add(RevoluteJoint(hub, blade, (0, 0), motor_speed=2, max_motor_torque=100))
+    run(world, 1)
+    assert math.isclose(blade.w, 2, rel_tol=1e-6)
+    assert blade.pos.dist_square(Vec2(0, 0)) < 1e-6
+
+
+def test_weld_holds_shape_on_impact():
+    world = floor_world()
+    a = world.add(Body.box(4, 1, pos=(0, 5)))
+    b = world.add(Body.box(1, 3, pos=(-1.5, 7)))
+    world.add(WeldJoint(a, b, (-1.5, 5)))
+    offset, turn = a.to_local(b.pos), b.angle - a.angle
+    run(world, 2)
+    assert a.to_local(b.pos).dist_square(offset) < 0.05 ** 2
+    assert abs(b.angle - a.angle - turn) < 0.02
+
+
+def test_distance_rod_and_spring():
+    world = World(gravity=(0, -10))
+    ground = world.add(Body.circle(0.1, static=True))
+    rod_end = world.add(Body.circle(0.3, pos=(4, 0)))
+    rod = world.add(DistanceJoint(ground, rod_end, (0, 0), (4, 0)))
+    run(world, 2)
+    assert abs((rod_end.pos - ground.pos).length() - rod.length) < 0.02
+
+    # undamped 1 Hz spring stretched by 1: half a period later it is compressed by about 1
+    world = World()
+    ground = world.add(Body.circle(0.1, static=True))
+    bob = world.add(Body.circle(0.3, pos=(5, 0)))
+    world.add(DistanceJoint(ground, bob, (0, 0), (5, 0), length=4, hertz=1))
+    run(world, 0.5, dt=1 / 240)
+    assert -1.05 < bob.pos.x - 4 < -0.85
+
+
+def test_prismatic_stays_on_rail():
+    world = World(gravity=(0, -10))
+    ground = world.add(Body.circle(0.1, static=True))
+    slider = world.add(Body.box(1, 1, pos=(0, 0)))
+    world.add(PrismaticJoint(ground, slider, (0, 0), (1, -1)))
+    run(world, 1)
+    assert abs(slider.pos.x + slider.pos.y) < 0.01  # on the line y = -x
+    assert slider.pos.x > 1  # slid down it
+    assert abs(slider.angle) < 0.01
+
+
+def test_mouse_joint_drags_body_to_target():
+    world = World(gravity=(0, -10))
+    body = world.add(Body.box(1, 1))
+    drag = world.add(MouseJoint(body, (0.5, 0)))
+    drag.target = (5, 3)
+    run(world, 2)
+    assert body.to_world(drag.local_b).dist_square(Vec2(5, 3)) < 0.1 ** 2  # soft: sags a little
+
+
+def test_scene_stays_inside_walls():
+    world, _ = make_scene()
+    run(world, 10)
+    assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in world.bodies if not b.is_static)

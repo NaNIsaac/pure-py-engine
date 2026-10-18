@@ -1,22 +1,47 @@
 # pure-py-engine
 
-A 2D rigid-body physics engine in plain Python, drawn with pygame-ce: vector/AABB math, convex polygon geometry, separating-axis collision for polygons and circles, impulse response with spin and Coulomb friction, and sub-stepped integration. Angles are in radians.
+A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies besides `seltools`; the pygame-ce demo lives in `main.py`.
 
-Status: early experiment. Contacts push bodies apart, then apply one normal + friction impulse at the mean contact point (Box2D-style edge clipping), so off-center hits spin bodies. No resting-contact solver or stacking yet.
+- Shapes: circles and convex polygons, separating-axis collision with Box2D-style edge clipping (up to two contact points, each with its own depth).
+- Solver: sequential impulses with accumulated clamping, warm started from the previous step; Coulomb friction, restitution above an impact-speed threshold, Baumgarte position correction, speculative points for faces that rock by a hair.
+- Joints: `RevoluteJoint` (optional motor), `WeldJoint`, `DistanceJoint` (rigid, or a spring with `hertz` / `damping_ratio`), `PrismaticJoint`, `MouseJoint`.
+- Performance: sweep-and-prune broadphase, world vertices and AABBs cached until a body moves, sleeping islands.
+
+Status: experiment. No continuous collision, joint limits, or prismatic motor.
 
 ## Requirements
 
-Python 3.14+, pygame-ce, `../seltools` (path dependency).
+Python 3.14+, pygame-ce (demo only), `../seltools` (path dependency).
 
 ## Usage
+
+```python
+from engine import Body, RevoluteJoint, World
+
+world = World(gravity=(0, -10))
+ground = world.add(Body.box(40, 2, pos=(0, -1), static=True))
+crate = world.add(Body.box(2, 2, pos=(0, 5), angle=0.3))
+ball = world.add(Body.circle(0.5, pos=(4, 3), restitution=0.8))
+world.add(RevoluteJoint(ground, ball, (4, 5)))  # pendulum pinned 2 above the ball
+
+for _ in range(180):
+    world.step(1 / 60)
+print(f"{crate.pos.y:.2f} {crate.awake}")  # 1.00 False: landed and fell asleep
+```
+
+Bodies are built with `Body.circle`, `Body.polygon`, `Body.box` or `Body.regular`, with keyword options `mass`, `pos`, `angle` (radians), `v`, `w`, `friction`, `restitution`, `static`. Points and vectors may be `Vec2` or `(x, y)`. Polygon vertices can be in either winding and anywhere around the origin; they are stored counter-clockwise around their centroid, and non-convex or zero-area input raises `ValueError`.
+
+Joint anchors are world points at the moment the joint is made. Jointed bodies do not collide unless `collide_connected=True`.
+
+`World` tuning: `iterations` (default 10), `time_to_sleep` (0.5 s, `math.inf` disables sleeping), `sleep_linear`, `sleep_angular`. `apply_impulse`, `MouseJoint.target` and new joints wake a body.
+
+## Demo
 
 ```bash
 uv run main.py
 ```
 
-Five shapes bounce inside four static walls. Drag a shape with the left mouse button; it follows the cursor through its velocity, so it still collides. Arrow keys pan the camera, mouse wheel zooms, holding Space spins every body.
-
-Polygon vertices can be given in either winding and anywhere around the origin; `RigidBody` stores them counter-clockwise around their centroid and rejects non-convex or zero-area input with `ValueError`. `mass=math.inf` makes a body static.
+Loose shapes, a stack that falls asleep (drawn dimmed), a hanging chain, a motorised windmill, a welded L, a spring, and a slider on a diagonal rail. Drag any body with the left mouse button (a `MouseJoint`), Space kicks everything upward, arrow keys pan, mouse wheel zooms.
 
 ## Test
 
@@ -27,8 +52,12 @@ uv run --with pytest pytest
 ## Structure
 
 ```
-main.py         RigidBody, contact, resolve, Camera, Entity, make_scene, game loop (1024x768, 60 fps)
-gmath.py        Vec2, AABB, polygon area / centroid / convexity, regular_polygon, rectangle
-collide.py      point_in_triangle, point_in_convex, SAT: polygons_collide, circle_polygon_collide, circles_collide
-test_engine.py  geometry, SAT, collision response, a 10 s scene that must stay inside the walls
+engine/gmath.py      Vec2, AABB, polygon area / centroid / convexity, regular_polygon, rectangle
+engine/collide.py    point tests, SAT for polygons and circles, contact point clipping
+engine/body.py       Body: shape, mass, cached world vertices / AABB, impulses, sleep state
+engine/contact.py    narrowphase dispatch, Arbiter (persistent contact, friction, warm start)
+engine/joints.py     revolute, weld, distance, prismatic, mouse joints
+engine/world.py      World: broadphase, islands and sleeping, solver loop
+main.py              pygame demo: Camera, scene, drawing, input
+test_engine.py       geometry, SAT, response, conservation, stacking, sleeping, each joint, the demo scene
 ```
