@@ -12,7 +12,7 @@ Status: experiment. Speculative contacts can stop a body a fraction of a step ea
 
 ## Requirements
 
-Python 3.14+, pygame-ce (demo only), and [seltools](https://github.com/NaNIsaac/seltools), which uv installs from its `master` branch.
+Python 3.14+, pygame-ce (demo only), and [seltools](https://github.com/NaNIsaac/seltools), which uv installs from its `main` branch.
 
 ## Usage
 
