@@ -6,7 +6,7 @@ Status: early experiment. The demo shows one triangle. Holding the left mouse bu
 
 ## Requirements
 
-Python 3.14+, pygame-ce.
+Python 3.14+, pygame-ce, `../seltools` (path dependency).
 
 ## Usage
 

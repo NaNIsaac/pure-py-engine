@@ -6,4 +6,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "pygame-ce>=2.5.7",
+    "seltools",
 ]
+
+[tool.uv.sources]
+seltools = { path = "../seltools", editable = true }

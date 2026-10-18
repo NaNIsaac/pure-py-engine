@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import pygame
 from pygame.typing import ColorLike
+from seltools import circular_pairs
 
 from gmath import AABB, Vec2
 from collide import point_in_convex
@@ -40,9 +41,7 @@ class RigidBody:
 
         numerator: float = 0
         denominator: float = 0
-        for i, _ in enumerate(vertices):
-            a: Vec2 = vertices[i]
-            b: Vec2 = vertices[(i + 1) % len(vertices)]
+        for a, b in circular_pairs(vertices):
             q: float = a.square() + a.dot(b) + b.square()
             cross_ab = abs(a.cross(b))
             numerator += q * cross_ab
