@@ -58,14 +58,17 @@ def _mean(vertices: list[Vec2]) -> Vec2:
     return sum(vertices, Vec2.zero()) / len(vertices)
 
 
-def _min_overlap(axes, project_a, project_b, a_center: Vec2, b_center: Vec2) -> Contact | None:
-    """Separating axis test: None if any axis separates, else the shallowest axis."""
+def _min_overlap(axes, project_a, project_b, a_center: Vec2, b_center: Vec2, margin: float) -> Contact | None:
+    """Separating axis test: None if any axis separates by `margin` or more, else the shallowest axis.
+
+    A negative depth is the gap of shapes closer than `margin` (a speculative contact).
+    """
     best = Contact(Vec2.zero(), math.inf)
     for axis in axes:
         a_min, a_max = project_a(axis)
         b_min, b_max = project_b(axis)
         overlap = min(a_max, b_max) - max(a_min, b_min)
-        if overlap <= 0:
+        if overlap <= -margin:
             return None
         if overlap < best.depth:
             best = Contact(axis, overlap)
@@ -93,7 +96,7 @@ def _clip(points: list[Vec2], axis: Vec2, offset: float) -> list[Vec2]:
     return kept
 
 
-def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact) -> Contact:
+def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact, margin: float) -> Contact:
     """Box2D-style: clip the incident edge against the reference edge's side planes."""
     normal = hit.normal
     edge_a, edge_b = _facing_edge(a, normal), _facing_edge(b, -normal)
@@ -108,7 +111,7 @@ def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact) -> Contact:
     points = _clip(inc, tangent, tangent.dot(ref[0]))
     points = _clip(points, -tangent, -tangent.dot(ref[1]))
     face = tangent.perp()
-    kept = [(x, depth) for x in points if (depth := face.dot(ref[0] - x)) >= -CONTACT_MARGIN]
+    kept = [(x, depth) for x in points if (depth := face.dot(ref[0] - x)) >= -CONTACT_MARGIN - margin]
     if not kept:
         # ponytail: degenerate clip falls back to the deepest vertex of b
         kept = [(min(b, key=normal.dot), hit.depth)]
@@ -116,18 +119,18 @@ def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact) -> Contact:
     return hit._replace(points=points, depths=depths)
 
 
-def polygons_collide(a: list[Vec2], b: list[Vec2]) -> Contact | None:
-    """Convex polygons in world space."""
+def polygons_collide(a: list[Vec2], b: list[Vec2], margin: float = 0.0) -> Contact | None:
+    """Convex polygons in world space, reported up to `margin` apart."""
     hit = _min_overlap(
         [*_edge_normals(a), *_edge_normals(b)],
         lambda axis: _project(a, axis),
         lambda axis: _project(b, axis),
-        _mean(a), _mean(b),
+        _mean(a), _mean(b), margin,
     )
-    return None if hit is None else _clip_points(a, b, hit)
+    return None if hit is None else _clip_points(a, b, hit, margin)
 
 
-def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> Contact | None:
+def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2], margin: float = 0.0) -> Contact | None:
     """Circle and convex polygon in world space; the normal points from the circle."""
     closest = min(polygon, key=center.dist_square)
     axes = [*_edge_normals(polygon)]
@@ -137,15 +140,15 @@ def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2]) -> 
         axes,
         lambda axis: (center.dot(axis) - radius, center.dot(axis) + radius),
         lambda axis: _project(polygon, axis),
-        center, _mean(polygon),
+        center, _mean(polygon), margin,
     )
     return None if hit is None else hit._replace(points=(center + hit.normal * radius,), depths=(hit.depth,))
 
 
-def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float) -> Contact | None:
+def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float, margin: float = 0.0) -> Contact | None:
     gap = b - a
     dist = gap.length()
-    if dist >= ra + rb:
+    if dist >= ra + rb + margin:
         return None
     normal = gap / dist if dist > 0 else Vec2(1, 0)
     depth = ra + rb - dist

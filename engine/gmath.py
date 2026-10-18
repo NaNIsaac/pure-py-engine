@@ -28,6 +28,9 @@ class AABB:
             aabb.max_y < self.min_y
             )
     
+    def expanded(self, margin: float) -> AABB:
+        return AABB(self.min_x - margin, self.min_y - margin, self.max_x + margin, self.max_y + margin)
+
     @classmethod
     def from_circle(cls, center: Vec2, radius: float) -> AABB:
         return cls(center.x - radius, center.y - radius, center.x + radius, center.y + radius)

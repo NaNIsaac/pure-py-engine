@@ -181,7 +181,7 @@ def test_broadphase_matches_brute_force():
     for k in range(40):
         x, y = (k * 7.3) % 20, (k * 3.1) % 12
         world.add(Body.box(2, 1.5, pos=(x, y), angle=k) if k % 2 else Body.circle(1, pos=(x, y)))
-    world._collide()
+    world._collide(1 / 60)
     brute = {frozenset(p) for p in combinations(world.bodies, 2) if collide(*p) is not None}
     assert {frozenset(p) for p in world.arbiters} == brute
     assert len(brute) > 10
@@ -302,3 +302,55 @@ def test_scene_stays_inside_walls():
     world, _ = make_scene()
     run(world, 10)
     assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in world.bodies if not b.is_static)
+
+
+@pytest.mark.parametrize("bullet", [Body.circle(0.2, restitution=1), Body.box(0.4, 0.4, restitution=1)])
+def test_fast_body_does_not_tunnel(bullet):
+    # 300 units/s moves 5 per step, 25x the wall's thickness
+    world = World()
+    world.add(Body.box(0.2, 10, static=True))
+    bullet.pos, bullet.v = Vec2(-3, 0), Vec2(300, 0)
+    world.add(bullet)
+    run(world, 0.5)
+    assert bullet.pos.x < 0
+    assert bullet.v.x < -290  # bounced back at about the speed it came in
+
+
+def test_tunnels_without_reach():
+    """The same shot with speculative reach switched off passes through: the check above is not vacuous."""
+    world = World()
+    world.add(Body.box(0.2, 10, static=True))
+    bullet = world.add(Body.circle(0.2, pos=(-3, 0), v=(300, 0)))
+    step_collide = world._collide
+    world._collide = lambda dt: step_collide(0.0)  # zero dt: zero reach
+    run(world, 0.5)
+    assert bullet.pos.x > 0
+
+
+def test_revolute_limits_stop_a_swing():
+    world = World(gravity=(0, -10))
+    ground = world.add(Body.circle(0.1, static=True))
+    arm = world.add(Body.box(4, 0.4, pos=(2, 0)))
+    hinge = world.add(RevoluteJoint(ground, arm, (0, 0), lower=-math.pi / 4, upper=math.pi / 4))
+    lowest = 0.0
+    for _ in range(180):
+        world.step(1 / 60)
+        lowest = min(lowest, hinge.angle)
+    assert -math.pi / 4 - 0.02 < lowest
+    assert abs(hinge.angle + math.pi / 4) < 0.02  # resting on the lower stop
+
+
+def test_prismatic_limits_and_motor():
+    world = World(gravity=(0, -10))
+    ground = world.add(Body.circle(0.1, static=True))
+    slider = world.add(Body.box(1, 1))
+    rail = world.add(PrismaticJoint(ground, slider, (0, 0), (0, 1), lower=-2, upper=3))
+    run(world, 2)
+    assert abs(rail.translation + 2) < 0.02  # fell onto the lower stop
+
+    rail.limits.motor_speed, rail.limits.max_motor = 4, 100
+    slider.wake()
+    run(world, 0.25)
+    assert math.isclose(slider.v.y, 4, rel_tol=1e-6)  # motor speed despite gravity
+    run(world, 2)
+    assert abs(rail.translation - 3) < 0.02  # driven up to the upper stop

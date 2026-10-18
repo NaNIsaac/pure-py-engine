@@ -6,7 +6,7 @@ makes a constraint soft (Box2D's spring formulation) instead.
 """
 import math
 
-from .body import Body, inv_effective_mass
+from .body import Body
 from .gmath import Vec2
 
 BAUMGARTE = 0.2
@@ -67,44 +67,99 @@ class Joint:
     def solve(self) -> None: ...
 
 
-class _AngleLock:
-    """Keeps b.angle - a.angle at its starting value."""
+class _Row:
+    """One scalar velocity constraint, speed = d . (vb - va) + sb * wb - sa * wa.
+
+    Keeps its accumulated impulse for warm starting. `solve` drives
+    speed + bias toward zero, clamping the total impulse to [lo, hi].
+    """
 
     def __init__(self, a: Body, b: Body):
         self.a, self.b = a, b
-        self.reference = b.angle - a.angle
         self.total = 0.0
 
-    def prestep(self, dt: float) -> None:
+    def setup(self, dt: float, d: Vec2, sa: float, sb: float,
+              hertz: float = 0.0, damping_ratio: float = 0.0) -> float:
+        """Prepare for this step and warm start; returns the bias rate for the position error."""
         a, b = self.a, self.b
-        inv = a.inv_inertia + b.inv_inertia
-        self.mass = 1 / inv if inv else 0.0
-        self.bias = -BAUMGARTE / dt * (b.angle - a.angle - self.reference)
-        a.w -= self.total * a.inv_inertia
-        b.w += self.total * b.inv_inertia
+        self.d, self.sa, self.sb = d, sa, sb
+        inv = (a.inv_mass + b.inv_mass) * d.square() + a.inv_inertia * sa * sa + b.inv_inertia * sb * sb
+        self.gamma, rate = _softness(hertz, damping_ratio, 1 / inv, dt)
+        self.mass = 1 / (inv + self.gamma)
+        self._apply(self.total)
+        return rate
+
+    def _apply(self, impulse: float) -> None:
+        a, b = self.a, self.b
+        a.v -= self.d * (impulse * a.inv_mass)
+        a.w -= self.sa * impulse * a.inv_inertia
+        b.v += self.d * (impulse * b.inv_mass)
+        b.w += self.sb * impulse * b.inv_inertia
+
+    def solve(self, bias: float, lo: float = -math.inf, hi: float = math.inf) -> None:
+        a, b = self.a, self.b
+        old = self.total
+        speed = self.d.dot(b.v - a.v) + self.sb * b.w - self.sa * a.w
+        self.total = min(max(old - self.mass * (speed + bias + self.gamma * old), lo), hi)
+        self._apply(self.total - old)
+
+
+def _limit_bias(room: float, dt: float) -> float:
+    """Bias for an inequality `room >= 0`: speculative while clear, Baumgarte once violated."""
+    return room / dt if room > 0 else BAUMGARTE * room / dt
+
+
+_TURN = Vec2(0, 0)  # `d` of a purely angular row
+
+
+class _Limits:
+    """Optional lower / upper stops and a motor on one joint coordinate."""
+
+    def __init__(self, a: Body, b: Body, lower: float | None, upper: float | None,
+                 motor_speed: float | None, max_motor: float):
+        self.lower, self.upper = lower, upper
+        self.motor_speed, self.max_motor = motor_speed, max_motor
+        self._lower, self._upper, self._motor = _Row(a, b), _Row(a, b), _Row(a, b)
+
+    def prestep(self, dt: float, value: float, d: Vec2, sa: float, sb: float) -> None:
+        if self.motor_speed is not None:
+            self._motor.setup(dt, d, sa, sb)
+            self._motor_limit = self.max_motor * dt
+        if self.lower is not None:
+            self._lower.setup(dt, d, sa, sb)
+            self._lower_bias = _limit_bias(value - self.lower, dt)
+        if self.upper is not None:
+            self._upper.setup(dt, -d, -sa, -sb)
+            self._upper_bias = _limit_bias(self.upper - value, dt)
 
     def solve(self) -> None:
-        a, b = self.a, self.b
-        impulse = self.mass * (self.bias - (b.w - a.w))
-        self.total += impulse
-        a.w -= impulse * a.inv_inertia
-        b.w += impulse * b.inv_inertia
+        if self.motor_speed is not None:
+            self._motor.solve(-self.motor_speed, -self._motor_limit, self._motor_limit)
+        if self.lower is not None:
+            self._lower.solve(self._lower_bias, lo=0.0)
+        if self.upper is not None:
+            self._upper.solve(self._upper_bias, lo=0.0)
 
 
 class RevoluteJoint(Joint):
     """Pins `a` and `b` together at the world point `anchor`; they still turn freely.
 
-    With `motor_speed` (rad/s) set, b turns relative to a at that speed, using
-    at most `max_motor_torque`.
+    `angle` is b's turn relative to a since the joint was made. `lower` /
+    `upper` (radians) stop it; with `motor_speed` (rad/s) set, b turns at that
+    speed using at most `max_motor_torque`.
     """
 
-    def __init__(self, a: Body, b: Body, anchor, *, motor_speed: float | None = None,
-                 max_motor_torque: float = math.inf, collide_connected: bool = False):
+    def __init__(self, a: Body, b: Body, anchor, *, lower: float | None = None, upper: float | None = None,
+                 motor_speed: float | None = None, max_motor_torque: float = math.inf,
+                 collide_connected: bool = False):
         super().__init__(a, b, anchor, anchor, collide_connected)
-        self.motor_speed = motor_speed
-        self.max_motor_torque = max_motor_torque
+        self.reference = b.angle - a.angle
+        self.limits = _Limits(a, b, lower, upper, motor_speed, max_motor_torque)
         self._total = Vec2.zero()
-        self._motor_total = 0.0
+
+    @property
+    def angle(self) -> float:
+        return self.b.angle - self.a.angle - self.reference
 
     def prestep(self, dt: float) -> None:
         a, b = self.a, self.b
@@ -113,22 +168,11 @@ class RevoluteJoint(Joint):
         self._bias = ((b.pos + rb) - (a.pos + ra)) * (-BAUMGARTE / dt)
         a._push(ra, -self._total)
         b._push(rb, self._total)
-        if self.motor_speed is not None:
-            inv = a.inv_inertia + b.inv_inertia
-            self._motor_mass = 1 / inv if inv else 0.0
-            self._motor_limit = self.max_motor_torque * dt
-            a.w -= self._motor_total * a.inv_inertia
-            b.w += self._motor_total * b.inv_inertia
+        self.limits.prestep(dt, self.angle, _TURN, 1.0, 1.0)
 
     def solve(self) -> None:
         a, b = self.a, self.b
-        if self.motor_speed is not None:
-            old = self._motor_total
-            wanted = old - self._motor_mass * (b.w - a.w - self.motor_speed)
-            self._motor_total = min(max(wanted, -self._motor_limit), self._motor_limit)
-            impulse = self._motor_total - old
-            a.w -= impulse * a.inv_inertia
-            b.w += impulse * b.inv_inertia
+        self.limits.solve()
         dv = b._velocity(self._rb) - a._velocity(self._ra)
         impulse = _solve2(self._k, self._bias - dv)
         self._total += impulse
@@ -137,19 +181,10 @@ class RevoluteJoint(Joint):
 
 
 class WeldJoint(RevoluteJoint):
-    """Glues `a` and `b` together at `anchor`: no relative motion or turning."""
+    """Glues `a` and `b` together at `anchor`: a revolute joint with both stops at 0."""
 
     def __init__(self, a: Body, b: Body, anchor, *, collide_connected: bool = False):
-        super().__init__(a, b, anchor, collide_connected=collide_connected)
-        self._lock = _AngleLock(a, b)
-
-    def prestep(self, dt: float) -> None:
-        super().prestep(dt)
-        self._lock.prestep(dt)
-
-    def solve(self) -> None:
-        self._lock.solve()
-        super().solve()
+        super().__init__(a, b, anchor, lower=0.0, upper=0.0, collide_connected=collide_connected)
 
 
 class DistanceJoint(Joint):
@@ -163,66 +198,59 @@ class DistanceJoint(Joint):
         super().__init__(a, b, anchor_a, anchor_b, collide_connected)
         self.length = (Vec2(*anchor_b) - Vec2(*anchor_a)).length() if length is None else length
         self.hertz, self.damping_ratio = hertz, damping_ratio
-        self._total = 0.0
-
-    def prestep(self, dt: float) -> None:
-        a, b = self.a, self.b
-        self._ra, self._rb = ra, rb = self._arms()
-        gap = (b.pos + rb) - (a.pos + ra)
-        distance = gap.length()
-        self._n = n = gap / distance if distance > 0 else Vec2(1, 0)
-        inv = inv_effective_mass(a, ra, b, rb, n)
-        self._gamma, rate = _softness(self.hertz, self.damping_ratio, 1 / inv, dt)
-        self._mass = 1 / (inv + self._gamma)
-        self._bias = rate * (distance - self.length)
-        a._push(ra, n * -self._total)
-        b._push(rb, n * self._total)
-
-    def solve(self) -> None:
-        a, b, n = self.a, self.b, self._n
-        speed = (b._velocity(self._rb) - a._velocity(self._ra)).dot(n)
-        impulse = -self._mass * (speed + self._bias + self._gamma * self._total)
-        self._total += impulse
-        a._push(self._ra, n * -impulse)
-        b._push(self._rb, n * impulse)
-
-
-class PrismaticJoint(Joint):
-    """`b` slides along `axis` (fixed in a's frame) through the world point `anchor`, without turning."""
-
-    # ponytail: no translation limits or motor; add them like RevoluteJoint's motor when a slider needs stops
-    def __init__(self, a: Body, b: Body, anchor, axis, *, collide_connected: bool = False):
-        super().__init__(a, b, anchor, anchor, collide_connected)
-        self.local_axis = Vec2(*axis).normalized().rotate(-a.angle)
-        self._lock = _AngleLock(a, b)
-        self._total = 0.0
+        self._row = _Row(a, b)
 
     def prestep(self, dt: float) -> None:
         a, b = self.a, self.b
         ra, rb = self._arms()
         gap = (b.pos + rb) - (a.pos + ra)
-        self._perp = perp = self.local_axis.rotate(a.angle).perp()
-        self._sa, self._sb = (gap + ra).cross(perp), rb.cross(perp)
-        inv = a.inv_mass + b.inv_mass + a.inv_inertia * self._sa ** 2 + b.inv_inertia * self._sb ** 2
-        self._mass = 1 / inv
-        self._bias = -BAUMGARTE / dt * gap.dot(perp)
-        self._apply(self._total)
-        self._lock.prestep(dt)
-
-    def _apply(self, impulse: float) -> None:
-        a, b, perp = self.a, self.b, self._perp
-        a.v -= perp * (impulse * a.inv_mass)
-        a.w -= self._sa * impulse * a.inv_inertia
-        b.v += perp * (impulse * b.inv_mass)
-        b.w += self._sb * impulse * b.inv_inertia
+        distance = gap.length()
+        n = gap / distance if distance > 0 else Vec2(1, 0)
+        rate = self._row.setup(dt, n, ra.cross(n), rb.cross(n), self.hertz, self.damping_ratio)
+        self._bias = rate * (distance - self.length)
 
     def solve(self) -> None:
+        self._row.solve(self._bias)
+
+
+class PrismaticJoint(Joint):
+    """`b` slides along `axis` (fixed in a's frame) through the world point `anchor`, without turning.
+
+    `translation` is b's travel along the axis since the joint was made.
+    `lower` / `upper` stop it; with `motor_speed` set, b slides at that speed
+    using at most `max_motor_force`.
+    """
+
+    def __init__(self, a: Body, b: Body, anchor, axis, *, lower: float | None = None,
+                 upper: float | None = None, motor_speed: float | None = None,
+                 max_motor_force: float = math.inf, collide_connected: bool = False):
+        super().__init__(a, b, anchor, anchor, collide_connected)
+        self.local_axis = Vec2(*axis).normalized().rotate(-a.angle)
+        self.reference = b.angle - a.angle
+        self.limits = _Limits(a, b, lower, upper, motor_speed, max_motor_force)
+        self._perp, self._turn = _Row(a, b), _Row(a, b)
+
+    @property
+    def translation(self) -> float:
+        start, end = self.anchors()
+        return (end - start).dot(self.local_axis.rotate(self.a.angle))
+
+    def prestep(self, dt: float) -> None:
         a, b = self.a, self.b
-        self._lock.solve()
-        speed = self._perp.dot(b.v - a.v) + self._sb * b.w - self._sa * a.w
-        impulse = self._mass * (self._bias - speed)
-        self._total += impulse
-        self._apply(impulse)
+        ra, rb = self._arms()
+        gap = (b.pos + rb) - (a.pos + ra)
+        axis = self.local_axis.rotate(a.angle)
+        perp = axis.perp()
+        rate = self._perp.setup(dt, perp, (gap + ra).cross(perp), rb.cross(perp))
+        self._perp_bias = rate * gap.dot(perp)
+        rate = self._turn.setup(dt, _TURN, 1.0, 1.0)
+        self._turn_bias = rate * (b.angle - a.angle - self.reference)
+        self.limits.prestep(dt, gap.dot(axis), axis, (gap + ra).cross(axis), rb.cross(axis))
+
+    def solve(self) -> None:
+        self.limits.solve()
+        self._turn.solve(self._turn_bias)
+        self._perp.solve(self._perp_bias)
 
 
 class MouseJoint(Joint):

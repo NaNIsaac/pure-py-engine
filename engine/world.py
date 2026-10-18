@@ -58,7 +58,7 @@ class World:
         return next((b for b in reversed(self.bodies) if b.contains(point)), None)
 
     def step(self, dt: float) -> None:
-        self._collide()
+        self._collide(dt)
         self._sleep_islands()
 
         awake = [b for b in self.bodies if b.awake]
@@ -90,23 +90,29 @@ class World:
             moving = b.v.square() > linear or b.w * b.w > angular
             b.sleep_time = 0.0 if moving else b.sleep_time + dt
 
-    def _collide(self) -> None:
+    def _collide(self, dt: float) -> None:
+        # Speculative contacts stand in for continuous collision: each awake body's
+        # box grows by how far its surface can travel this step, and pairs within
+        # reach get contacts with negative depth that stop them at first touch.
+        fall = self.gravity.length() * dt
+        reach = {b: (b.v.length() + fall + abs(b.w) * b.extent) * dt if b.awake else 0.0 for b in self.bodies}
+        boxes = {b: b.aabb.expanded(r) if r else b.aabb for b, r in reach.items()}
         # bodies barely reorder between steps, so this in-place sort runs in near linear time
-        self._sweep.sort(key=lambda b: b.aabb.min_x)
+        self._sweep.sort(key=lambda b: boxes[b].min_x)
         skip = {_pair(*j.bodies) for j in self.joints if not j.collide_connected and len(j.bodies) == 2}
         arbiters = {}
         sweep = self._sweep
         for i, a in enumerate(sweep):
-            box = a.aabb
+            box = boxes[a]
             for j in range(i + 1, len(sweep)):
                 b = sweep[j]
-                other = b.aabb
+                other = boxes[b]
                 if other.min_x > box.max_x:
                     break
                 if not (a.awake or b.awake) or other.min_y > box.max_y or other.max_y < box.min_y:
                     continue
                 pair = _pair(a, b)
-                if pair in skip or (hit := collide(*pair)) is None:
+                if pair in skip or (hit := collide(*pair, reach[a] + reach[b])) is None:
                     continue
                 arbiter = self.arbiters.get(pair) or Arbiter(*pair)
                 arbiter.update(hit)

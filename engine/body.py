@@ -45,6 +45,8 @@ class Body:
         static = static or math.isinf(mass)
         self.radius = radius
         self.local_vertices = None if vertices is None else centered_convex(vertices)
+        # farthest point from the center, bounds how far spin can move the surface
+        self.extent = radius if vertices is None else max(v.length() for v in self.local_vertices)
         self.pos = Vec2(*pos)
         self.angle = angle
         self.v = Vec2(*v)

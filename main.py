@@ -97,11 +97,12 @@ def make_scene() -> tuple[World, dict[Body, str]]:
 
     # distance with a spring: a bob hanging from the ceiling
     bob = add(Body.regular(6, 2.5, mass=1, pos=(22, 14)), "#DA8BC3")
-    world.add(DistanceJoint(ceiling, bob, (22, 32), (22, 14), length=14, hertz=1.5, damping_ratio=0.1))
+    world.add(DistanceJoint(ceiling, bob, (22, 32), (22, 14), length=14, hertz=1.5, damping_ratio=0.1,
+                              collide_connected=True))
 
     # prismatic: a slider on a diagonal rail anchored to the floor
     slider = add(Body.box(4, 2, mass=1, pos=(-38, -12)), "#937860")
-    world.add(PrismaticJoint(floor, slider, (-38, -12), (1, -1)))
+    world.add(PrismaticJoint(floor, slider, (-38, -12), (1, -1), lower=0, upper=14))
     return world, colors
 
 
@@ -145,6 +146,10 @@ def main():
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and drag is not None:
                 world.remove(drag)
                 drag = None
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
+                # a bullet: speculative contacts stop it at the first surface instead of tunnelling
+                bullet = world.add(Body.circle(0.5, mass=0.2, pos=(-42, 25), v=(400, -60), restitution=0.6))
+                colors[bullet] = "#FFFFFF"
 
         keys: pygame.key.ScancodeWrapper = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:

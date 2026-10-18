@@ -12,18 +12,18 @@ BOUNCE_THRESHOLD = 1.0  # slower impacts do not bounce, so stacks can come to re
 MATCH_DISTANCE = 0.1
 
 
-def collide(a: Body, b: Body) -> Contact | None:
-    """Overlap of two bodies; the normal points from `a` to `b`."""
+def collide(a: Body, b: Body, margin: float = 0.0) -> Contact | None:
+    """Overlap of two bodies, or their gap when under `margin`; the normal points from `a` to `b`."""
     match a.vertices, b.vertices:
         case None, None:
-            return circles_collide(a.pos, a.radius, b.pos, b.radius)
+            return circles_collide(a.pos, a.radius, b.pos, b.radius, margin)
         case None, _:
-            return circle_polygon_collide(a.pos, a.radius, b.vertices)
+            return circle_polygon_collide(a.pos, a.radius, b.vertices, margin)
         case _, None:
-            hit = circle_polygon_collide(b.pos, b.radius, a.vertices)
+            hit = circle_polygon_collide(b.pos, b.radius, a.vertices, margin)
             return None if hit is None else hit._replace(normal=-hit.normal)
         case _:
-            return polygons_collide(a.vertices, b.vertices)
+            return polygons_collide(a.vertices, b.vertices, margin)
 
 
 @dataclass(slots=True)
@@ -69,7 +69,9 @@ class Arbiter:
             p.normal_mass = 1 / inv_effective_mass(a, p.ra, b, p.rb, n)
             p.tangent_mass = 1 / inv_effective_mass(a, p.ra, b, p.rb, t)
             closing = (b._velocity(p.rb) - a._velocity(p.ra)).dot(n)
-            bounce = -self.restitution * closing if closing < -BOUNCE_THRESHOLD else 0.0
+            # a speculative point bounces only if it would close its gap within this step
+            arrives = p.depth >= 0 or closing <= p.depth * inv_dt
+            bounce = -self.restitution * closing if arrives and closing < -BOUNCE_THRESHOLD else 0.0
             # a bounce already separates the bodies; adding the push on top would add energy
             if p.depth < 0:
                 push = p.depth * inv_dt  # speculative: may close the gap, not more
