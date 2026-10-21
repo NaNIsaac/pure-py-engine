@@ -6,11 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "pygame-ce>=2.5.7",
-    "seltools",
 ]
-
-[tool.uv.sources]
-seltools = { git = "https://github.com/NaNIsaac/seltools", branch = "main" }
 
 [tool.ruff]
 line-length = 100

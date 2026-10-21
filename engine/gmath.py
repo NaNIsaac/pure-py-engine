@@ -1,7 +1,24 @@
 import math
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from seltools import circular_pairwise, circular_windowed
+
+def circular_pairwise[T](items: Sequence[T]) -> Iterator[tuple[T, T]]:
+    """Consecutive pairs plus the closing pair ``(last, first)``.
+
+    >>> list(circular_pairwise("abc"))
+    [('a', 'b'), ('b', 'c'), ('c', 'a')]
+    """
+    return zip(items, items[1:] + items[:1])
+
+
+def circular_windowed[T](items: Sequence[T], n: int) -> Iterator[tuple[T, ...]]:
+    """One length-`n` window starting at each index, wrapping past the end.
+
+    >>> list(circular_windowed("abcd", 3))
+    [('a', 'b', 'c'), ('b', 'c', 'd'), ('c', 'd', 'a'), ('d', 'a', 'b')]
+    """
+    return zip(*(items[k:] + items[:k] for k in range(n)))
 
 
 def sign(x: float) -> int:
