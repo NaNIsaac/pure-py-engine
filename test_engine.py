@@ -26,7 +26,13 @@ from engine.collide import (
     polygons_collide,
 )
 from engine.contact import collide
-from engine.gmath import polygon_centroid, polygon_signed_area, rectangle
+from engine.gmath import (
+    circular_pairwise,
+    circular_windowed,
+    polygon_centroid,
+    polygon_signed_area,
+    rectangle,
+)
 from main import HEIGHT, WIDTH, Camera, bullets, cradle, make_scene, pyramid, ramp
 
 # equilateral, side 2, centroid at origin, counter-clockwise
@@ -36,6 +42,13 @@ TRIANGLE = [Vec2(-1, -math.sqrt(3) / 3), Vec2(1, -math.sqrt(3) / 3), Vec2(0, mat
 def run(world: World, seconds: float, dt: float = 1 / 60) -> None:
     for _ in range(round(seconds / dt)):
         world.step(dt)
+
+
+def test_circular_helpers_wrap_around():
+    assert list(circular_pairwise([1, 2, 3])) == [(1, 2), (2, 3), (3, 1)]
+    assert list(circular_pairwise((1, 2, 3))) == [(1, 2), (2, 3), (3, 1)]
+    assert list(circular_pairwise([])) == []
+    assert list(circular_windowed([1, 2, 3, 4], 3)) == [(1, 2, 3), (2, 3, 4), (3, 4, 1), (4, 1, 2)]
 
 
 def test_point_in_triangle():

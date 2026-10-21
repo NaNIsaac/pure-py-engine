@@ -1,6 +1,6 @@
 # pure-py-engine
 
-A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies besides `seltools`; the pygame-ce demo and check scenes live in `main.py`.
+A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies; the pygame-ce demo and check scenes live in `main.py`.
 
 - Shapes: circles and convex polygons, separating-axis collision with Box2D-style edge clipping (up to two contact points, each with its own depth).
 - Solver: sequential impulses with accumulated clamping, warm started from the previous step; Coulomb friction, restitution above an impact-speed threshold, Baumgarte position correction.
@@ -12,7 +12,7 @@ Status: experiment. Speculative contacts can stop a body a fraction of a step ea
 
 ## Requirements
 
-Python 3.14+, pygame-ce (demo only), and [seltools](https://github.com/NaNIsaac/seltools), which uv installs from its `main` branch.
+Python 3.14+ and pygame-ce (demo only).
 
 ## Usage
 

@@ -1,9 +1,7 @@
 import math
 
-from seltools import circular_pairwise
-
 from .collide import point_in_convex
-from .gmath import AABB, Vec2, centered_convex, rectangle, regular_polygon
+from .gmath import AABB, Vec2, centered_convex, circular_pairwise, rectangle, regular_polygon
 
 
 def _unit_inertia(radius: float, vertices: list[Vec2] | None) -> float:

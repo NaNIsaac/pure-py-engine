@@ -4,9 +4,7 @@ Only Works for counter clockwise oriented vertices
 import math
 from typing import NamedTuple
 
-from seltools import circular_pairwise
-
-from .gmath import Vec2
+from .gmath import Vec2, circular_pairwise
 
 # clipped points this close outside the reference face are kept, so a resting
 # face keeps both points while it rocks by a hair
