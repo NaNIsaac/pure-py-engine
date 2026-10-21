@@ -57,8 +57,11 @@ class Arbiter:
         for world, depth in zip(hit.points, hit.depths):
             point = _Point(world, depth, self.a.to_local(world))
             match = min(old, key=lambda o: o.local.dist_square(point.local), default=None)
-            if match is not None and match.local.dist_square(point.local) < MATCH_DISTANCE ** 2:
-                point.normal_impulse, point.tangent_impulse = match.normal_impulse, match.tangent_impulse
+            if match is not None and match.local.dist_square(point.local) < MATCH_DISTANCE**2:
+                point.normal_impulse, point.tangent_impulse = (
+                    match.normal_impulse,
+                    match.tangent_impulse,
+                )
             self.points.append(point)
 
     def prestep(self, inv_dt: float) -> None:

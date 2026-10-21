@@ -83,7 +83,7 @@ class World:
             for arb in arbiters:
                 arb.solve()
 
-        linear, angular = self.sleep_linear ** 2, self.sleep_angular ** 2
+        linear, angular = self.sleep_linear**2, self.sleep_angular**2
         for b in awake:
             b.pos += b.v * dt
             b.angle += b.w * dt
@@ -95,11 +95,16 @@ class World:
         # box grows by how far its surface can travel this step, and pairs within
         # reach get contacts with negative depth that stop them at first touch.
         fall = self.gravity.length() * dt
-        reach = {b: (b.v.length() + fall + abs(b.w) * b.extent) * dt if b.awake else 0.0 for b in self.bodies}
+        reach = {
+            b: (b.v.length() + fall + abs(b.w) * b.extent) * dt if b.awake else 0.0
+            for b in self.bodies
+        }
         boxes = {b: b.aabb.expanded(r) if r else b.aabb for b, r in reach.items()}
         # bodies barely reorder between steps, so this in-place sort runs in near linear time
         self._sweep.sort(key=lambda b: boxes[b].min_x)
-        skip = {_pair(*j.bodies) for j in self.joints if not j.collide_connected and len(j.bodies) == 2}
+        skip = {
+            _pair(*j.bodies) for j in self.joints if not j.collide_connected and len(j.bodies) == 2
+        }
         arbiters = {}
         sweep = self._sweep
         for i, a in enumerate(sweep):

@@ -10,3 +10,14 @@ dependencies = [
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I", "UP", "B"]
+
+# violations present when ruff became mandatory in CI; remove entries as they are fixed
+[tool.ruff.lint.extend-per-file-ignores]
+"engine/collide.py" = ["B905"]
+"engine/contact.py" = ["B905"]
+"engine/gmath.py" = ["B905"]
+"main.py" = ["B007", "B905"]
+"test_engine.py" = ["B905"]

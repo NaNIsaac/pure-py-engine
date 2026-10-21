@@ -52,7 +52,9 @@ class Body:
         self.friction = friction
         self.restitution = restitution
         self.inv_mass = 0.0 if static else 1 / mass
-        self.inv_inertia = 0.0 if static else 1 / (mass * _unit_inertia(radius, self.local_vertices))
+        self.inv_inertia = (
+            0.0 if static else 1 / (mass * _unit_inertia(radius, self.local_vertices))
+        )
 
         self.force = Vec2.zero()
         self.torque = 0.0
@@ -91,7 +93,10 @@ class Body:
         else:
             cos, sin = math.cos(self.angle), math.sin(self.angle)
             px, py = self.pos
-            self._vertices = [Vec2(px + v.x * cos - v.y * sin, py + v.x * sin + v.y * cos) for v in self.local_vertices]
+            self._vertices = [
+                Vec2(px + v.x * cos - v.y * sin, py + v.x * sin + v.y * cos)
+                for v in self.local_vertices
+            ]
             self._aabb = AABB.from_vertices(self._vertices)
 
     @property
@@ -114,7 +119,7 @@ class Body:
     def contains(self, point) -> bool:
         point = Vec2(*point)
         if self.local_vertices is None:
-            return self.pos.dist_square(point) <= self.radius ** 2
+            return self.pos.dist_square(point) <= self.radius**2
         return point_in_convex(point, self.vertices)
 
     def velocity_at(self, point) -> Vec2:
@@ -154,6 +159,9 @@ class Body:
 
 def inv_effective_mass(a: Body, ra: Vec2, b: Body, rb: Vec2, direction: Vec2) -> float:
     """1 / effective mass of the two bodies along `direction` at arms `ra`, `rb`."""
-    return (a.inv_mass + b.inv_mass
-            + a.inv_inertia * ra.cross(direction) ** 2
-            + b.inv_inertia * rb.cross(direction) ** 2)
+    return (
+        a.inv_mass
+        + b.inv_mass
+        + a.inv_inertia * ra.cross(direction) ** 2
+        + b.inv_inertia * rb.cross(direction) ** 2
+    )

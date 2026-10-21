@@ -1,6 +1,7 @@
 """
 Only Works for counter clockwise oriented vertices
 """
+
 import math
 from typing import NamedTuple
 
@@ -17,16 +18,19 @@ class Contact(NamedTuple):
     `points` holds one or two world-space contact points; `depths[i]` is how far
     `points[i]` sits inside the other shape (negative: just outside).
     """
+
     normal: Vec2
     depth: float
     points: tuple[Vec2, ...] = ()
     depths: tuple[float, ...] = ()
 
+
 def point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool:
     return all((v - u).cross(p - u) > 0 for u, v in circular_pairwise((a, b, c)))
 
+
 def point_in_convex(p: Vec2, vertices: list[Vec2]) -> bool:
-    
+
     origin = vertices[0]
     segments = [vertices[i] - origin for i in range(1, len(vertices))]
 
@@ -43,7 +47,7 @@ def point_in_convex(p: Vec2, vertices: list[Vec2]) -> bool:
             low = mid
         else:
             high = mid
-    
+
     return (segments[high] - segments[low]).cross(point - segments[low]) >= 0
 
 
@@ -56,7 +60,9 @@ def _mean(vertices: list[Vec2]) -> Vec2:
     return sum(vertices, Vec2.zero()) / len(vertices)
 
 
-def _min_overlap(axes, project_a, project_b, a_center: Vec2, b_center: Vec2, margin: float) -> Contact | None:
+def _min_overlap(
+    axes, project_a, project_b, a_center: Vec2, b_center: Vec2, margin: float
+) -> Contact | None:
     """Separating axis test: None if any axis separates by `margin` or more, else the shallowest axis.
 
     A negative depth is the gap of shapes closer than `margin` (a speculative contact).
@@ -81,7 +87,9 @@ def _edge_normals(vertices: list[Vec2]):
 
 def _facing_edge(vertices: list[Vec2], direction: Vec2) -> tuple[Vec2, Vec2]:
     """The edge whose outward normal points most along `direction`."""
-    return max(circular_pairwise(vertices), key=lambda e: (e[1] - e[0]).perp().normalized().dot(direction))
+    return max(
+        circular_pairwise(vertices), key=lambda e: (e[1] - e[0]).perp().normalized().dot(direction)
+    )
 
 
 def _clip(points: list[Vec2], axis: Vec2, offset: float) -> list[Vec2]:
@@ -98,8 +106,10 @@ def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact, margin: float) -> C
     """Box2D-style: clip the incident edge against the reference edge's side planes."""
     normal = hit.normal
     edge_a, edge_b = _facing_edge(a, normal), _facing_edge(b, -normal)
+
     def alignment(e, n):
         return abs((e[1] - e[0]).normalized().dot(n))
+
     # the reference edge is the one more perpendicular to the normal; ties go to `a`
     if alignment(edge_a, normal) <= alignment(edge_b, normal) + 1e-9:
         ref, inc = edge_a, edge_b
@@ -109,7 +119,9 @@ def _clip_points(a: list[Vec2], b: list[Vec2], hit: Contact, margin: float) -> C
     points = _clip(inc, tangent, tangent.dot(ref[0]))
     points = _clip(points, -tangent, -tangent.dot(ref[1]))
     face = tangent.perp()
-    kept = [(x, depth) for x in points if (depth := face.dot(ref[0] - x)) >= -CONTACT_MARGIN - margin]
+    kept = [
+        (x, depth) for x in points if (depth := face.dot(ref[0] - x)) >= -CONTACT_MARGIN - margin
+    ]
     if not kept:
         # ponytail: degenerate clip falls back to the deepest vertex of b
         kept = [(min(b, key=normal.dot), hit.depth)]
@@ -123,12 +135,16 @@ def polygons_collide(a: list[Vec2], b: list[Vec2], margin: float = 0.0) -> Conta
         [*_edge_normals(a), *_edge_normals(b)],
         lambda axis: _project(a, axis),
         lambda axis: _project(b, axis),
-        _mean(a), _mean(b), margin,
+        _mean(a),
+        _mean(b),
+        margin,
     )
     return None if hit is None else _clip_points(a, b, hit, margin)
 
 
-def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2], margin: float = 0.0) -> Contact | None:
+def circle_polygon_collide(
+    center: Vec2, radius: float, polygon: list[Vec2], margin: float = 0.0
+) -> Contact | None:
     """Circle and convex polygon in world space; the normal points from the circle."""
     closest = min(polygon, key=center.dist_square)
     axes = [*_edge_normals(polygon)]
@@ -138,9 +154,15 @@ def circle_polygon_collide(center: Vec2, radius: float, polygon: list[Vec2], mar
         axes,
         lambda axis: (center.dot(axis) - radius, center.dot(axis) + radius),
         lambda axis: _project(polygon, axis),
-        center, _mean(polygon), margin,
+        center,
+        _mean(polygon),
+        margin,
     )
-    return None if hit is None else hit._replace(points=(center + hit.normal * radius,), depths=(hit.depth,))
+    return (
+        None
+        if hit is None
+        else hit._replace(points=(center + hit.normal * radius,), depths=(hit.depth,))
+    )
 
 
 def circles_collide(a: Vec2, ra: float, b: Vec2, rb: float, margin: float = 0.0) -> Contact | None:

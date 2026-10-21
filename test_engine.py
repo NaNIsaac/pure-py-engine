@@ -110,14 +110,20 @@ def square(x, y):
 
 
 def test_sat():
-    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(Vec2(1, 0), 0.5, (Vec2(0.5, 1), Vec2(0.5, -1)), (0.5, 0.5))
+    assert polygons_collide(square(0, 0), square(1.5, 0)) == Contact(
+        Vec2(1, 0), 0.5, (Vec2(0.5, 1), Vec2(0.5, -1)), (0.5, 0.5)
+    )
     assert polygons_collide(square(0, 0), square(2.5, 0)) is None
     assert polygons_collide(square(1.5, 0.2), square(0, 0)).normal == Vec2(-1, 0)
-    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(Vec2(0, -1), 0.5, (Vec2(0, 0.5),), (0.5,))
+    assert circle_polygon_collide(Vec2(0, 1.5), 1, square(0, 0)) == Contact(
+        Vec2(0, -1), 0.5, (Vec2(0, 0.5),), (0.5,)
+    )
     assert circle_polygon_collide(Vec2(2, 2), 1, square(0, 0)) is None  # corner gap: sqrt(2) - 1
     hit = circle_polygon_collide(Vec2(1.6, 1.6), 1, square(0, 0))
     assert math.isclose(hit.depth, 1 - 0.6 * math.sqrt(2))
-    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(Vec2(1, 0), 0.5, (Vec2(1, 0),), (0.5,))
+    assert circles_collide(Vec2(0, 0), 1, Vec2(1.5, 0), 1) == Contact(
+        Vec2(1, 0), 0.5, (Vec2(1, 0),), (0.5,)
+    )
 
 
 def test_contact_points_clip_to_overlap():
@@ -160,8 +166,18 @@ def corner_hit(friction=0.3, restitution=0.5):
     """A diamond's corner strikes the upper half of a resting square's right face."""
     world = World()
     a = world.add(Body.box(2, 2, friction=friction, restitution=restitution))
-    b = world.add(Body.box(2, 2, mass=2, angle=math.pi / 4, pos=(2.3, 0.5), v=(-4, 1),
-                           friction=friction, restitution=restitution))
+    b = world.add(
+        Body.box(
+            2,
+            2,
+            mass=2,
+            angle=math.pi / 4,
+            pos=(2.3, 0.5),
+            v=(-4, 1),
+            friction=friction,
+            restitution=restitution,
+        )
+    )
     world.step(1 / 60)
     return a, b
 
@@ -249,7 +265,7 @@ def test_revolute_pendulum_keeps_its_pin():
     for _ in range(300):
         world.step(1 / 60)
         pin_a, pin_b = joint.anchors()
-        assert pin_a.dist_square(pin_b) < 0.02 ** 2
+        assert pin_a.dist_square(pin_b) < 0.02**2
     assert bob.pos.dist_square(Vec2(3, 0)) > 0.1  # it swung
 
 
@@ -270,7 +286,7 @@ def test_weld_holds_shape_on_impact():
     world.add(WeldJoint(a, b, (-1.5, 5)))
     offset, turn = a.to_local(b.pos), b.angle - a.angle
     run(world, 2)
-    assert a.to_local(b.pos).dist_square(offset) < 0.05 ** 2
+    assert a.to_local(b.pos).dist_square(offset) < 0.05**2
     assert abs(b.angle - a.angle - turn) < 0.02
 
 
@@ -308,7 +324,7 @@ def test_mouse_joint_drags_body_to_target():
     drag = world.add(MouseJoint(body, (0.5, 0)))
     drag.target = (5, 3)
     run(world, 2)
-    assert body.to_world(drag.local_b).dist_square(Vec2(5, 3)) < 0.1 ** 2  # soft: sags a little
+    assert body.to_world(drag.local_b).dist_square(Vec2(5, 3)) < 0.1**2  # soft: sags a little
 
 
 def test_pyramid_stands_and_sleeps():
@@ -356,7 +372,9 @@ def test_scene_stays_inside_walls():
     assert all(abs(b.pos.x) < 45 and abs(b.pos.y) < 32 for b in world.bodies if not b.is_static)
 
 
-@pytest.mark.parametrize("bullet", [Body.circle(0.2, restitution=1), Body.box(0.4, 0.4, restitution=1)])
+@pytest.mark.parametrize(
+    "bullet", [Body.circle(0.2, restitution=1), Body.box(0.4, 0.4, restitution=1)]
+)
 def test_fast_body_does_not_tunnel(bullet):
     # 300 units/s moves 5 per step, 25x the wall's thickness
     world = World()

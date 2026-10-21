@@ -45,21 +45,21 @@ class Camera:
             self.x - real_half_width,
             self.y - real_half_height,
             self.x + real_half_width,
-            self.y + real_half_height
+            self.y + real_half_height,
         )
 
     def to_screen(self, point: Vec2) -> tuple[float, float]:
         """World to screen pixels; screen y grows downward."""
         return (
             self.zoom * (point.x - self.x) + self.width * 0.5,
-            self.zoom * -(point.y - self.y) + self.height * 0.5
+            self.zoom * -(point.y - self.y) + self.height * 0.5,
         )
 
     def to_world(self, point) -> Vec2:
         x, y = point
         return Vec2(
             (x - self.width * 0.5) / self.zoom + self.x,
-            -(y - self.height * 0.5) / self.zoom + self.y
+            -(y - self.height * 0.5) / self.zoom + self.y,
         )
 
 
@@ -73,7 +73,9 @@ def make_scene() -> Scene:
         return body
 
     walls = [((0, -33), (92, 2)), ((0, 33), (92, 2)), ((-46, 0), (2, 68)), ((46, 0), (2, 68))]
-    floor, ceiling, *_ = [add(Body.box(w, h, pos=pos, static=True), "#555555") for pos, (w, h) in walls]
+    floor, ceiling, *_ = [
+        add(Body.box(w, h, pos=pos, static=True), "#555555") for pos, (w, h) in walls
+    ]
 
     # loose shapes
     add(Body.regular(3, 5, mass=1, pos=(-25, 10), v=(20, -5)), "#4C72B0")
@@ -105,8 +107,18 @@ def make_scene() -> Scene:
 
     # distance with a spring: a bob hanging from the ceiling
     bob = add(Body.regular(6, 2.5, mass=1, pos=(22, 14)), "#DA8BC3")
-    world.add(DistanceJoint(ceiling, bob, (22, 32), (22, 14), length=14, hertz=1.5, damping_ratio=0.1,
-                              collide_connected=True))
+    world.add(
+        DistanceJoint(
+            ceiling,
+            bob,
+            (22, 32),
+            (22, 14),
+            length=14,
+            hertz=1.5,
+            damping_ratio=0.1,
+            collide_connected=True,
+        )
+    )
 
     # prismatic: a slider on a diagonal rail anchored to the floor
     slider = add(Body.box(4, 2, mass=1, pos=(-38, -12)), "#937860")
@@ -121,12 +133,18 @@ def pyramid() -> Scene:
     rows = 10
     for row in range(rows):
         for k in range(rows - row):
-            colors[world.add(Body.box(2, 2, pos=(2 * k - (rows - row - 1), -31 + 2 * row)))] = "#DD8452"
+            colors[world.add(Body.box(2, 2, pos=(2 * k - (rows - row - 1), -31 + 2 * row)))] = (
+                "#DD8452"
+            )
     top = world.bodies[-1]
     start = top.pos
-    return world, colors, lambda: (
-        f"top box drift {(top.pos - start).length():.3f}, "
-        f"asleep {sum(not b.awake for b in world.bodies[1:])}/{len(world.bodies) - 1}"
+    return (
+        world,
+        colors,
+        lambda: (
+            f"top box drift {(top.pos - start).length():.3f}, "
+            f"asleep {sum(not b.awake for b in world.bodies[1:])}/{len(world.bodies) - 1}"
+        ),
     )
 
 
@@ -190,20 +208,34 @@ def ramp() -> Scene:
 def bullets() -> Scene:
     """Bullets at 100 to 800 units/s in a box of 0.2 thick walls: none should get out, even after hitting each other."""
     world = World()
-    walls = [((-40, 0), (0.2, 40)), ((40, 0), (0.2, 40)), ((0, -20), (80, 0.2)), ((0, 20), (80, 0.2))]
+    walls = [
+        ((-40, 0), (0.2, 40)),
+        ((40, 0), (0.2, 40)),
+        ((0, -20), (80, 0.2)),
+        ((0, 20), (80, 0.2)),
+    ]
     colors = {world.add(Body.box(w, h, pos=pos, static=True)): "#555555" for pos, (w, h) in walls}
     shots = []
     for k in range(8):
         pos, v = (-30, -14 + 4 * k), (100 * (k + 1), 0)
-        shot = Body.circle(0.3, pos=pos, v=v, restitution=0.8) if k % 2 else \
-            Body.box(0.6, 0.6, pos=pos, v=v, restitution=0.8)
+        shot = (
+            Body.circle(0.3, pos=pos, v=v, restitution=0.8)
+            if k % 2
+            else Body.box(0.6, 0.6, pos=pos, v=v, restitution=0.8)
+        )
         colors[world.add(shot)] = "#FFFFFF"
         shots.append(shot)
     out = lambda: sum(abs(b.pos.x) > 40 or abs(b.pos.y) > 20 for b in shots)
     return world, colors, lambda: f"got out: {out()} of {len(shots)}"
 
 
-SCENES = {"demo": make_scene, "pyramid": pyramid, "cradle": cradle, "ramp": ramp, "bullets": bullets}
+SCENES = {
+    "demo": make_scene,
+    "pyramid": pyramid,
+    "cradle": cradle,
+    "ramp": ramp,
+    "bullets": bullets,
+}
 
 
 def energy(world: World) -> float:
@@ -212,7 +244,9 @@ def energy(world: World) -> float:
     for b in world.bodies:
         if not b.is_static:
             mass, inertia = 1 / b.inv_mass, 1 / b.inv_inertia
-            total += 0.5 * (mass * b.v.square() + inertia * b.w * b.w) - mass * world.gravity.dot(b.pos)
+            total += 0.5 * (mass * b.v.square() + inertia * b.w * b.w) - mass * world.gravity.dot(
+                b.pos
+            )
     return total
 
 
@@ -223,12 +257,16 @@ def draw_body(screen: pygame.Surface, camera: Camera, body: Body, color: str) ->
         center = camera.to_screen(body.pos)
         pygame.draw.circle(screen, color, center, camera.zoom * body.radius)
         # a spoke, so spin is visible
-        pygame.draw.line(screen, BACKGROUND_COLOR, center, camera.to_screen(body.to_world((body.radius, 0))), 2)
+        pygame.draw.line(
+            screen, BACKGROUND_COLOR, center, camera.to_screen(body.to_world((body.radius, 0))), 2
+        )
     else:
         pygame.draw.polygon(screen, color, [camera.to_screen(v) for v in body.vertices])
 
 
-def draw(screen: pygame.Surface, camera: Camera, world: World, colors: dict[Body, str], hud: list[str]) -> None:
+def draw(
+    screen: pygame.Surface, camera: Camera, world: World, colors: dict[Body, str], hud: list[str]
+) -> None:
     screen.fill(BACKGROUND_COLOR)
     view = camera.aabb
     for body in world.bodies:
@@ -318,7 +356,9 @@ def main():
                 drag = None
             if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
                 # a bullet: speculative contacts stop it at the first surface instead of tunnelling
-                bullet = world.add(Body.circle(0.5, mass=0.2, pos=(-42, 25), v=(400, -60), restitution=0.6))
+                bullet = world.add(
+                    Body.circle(0.5, mass=0.2, pos=(-42, 25), v=(400, -60), restitution=0.6)
+                )
                 colors[bullet] = "#FFFFFF"
 
         keys: pygame.key.ScancodeWrapper = pygame.key.get_pressed()

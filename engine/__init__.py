@@ -1,4 +1,5 @@
 """2D rigid-body physics in plain Python."""
+
 from .body import Body
 from .collide import Contact
 from .gmath import AABB, Vec2

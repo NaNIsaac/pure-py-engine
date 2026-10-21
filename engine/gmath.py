@@ -24,8 +24,10 @@ def circular_windowed[T](items: Sequence[T], n: int) -> Iterator[tuple[T, ...]]:
 def sign(x: float) -> int:
     return (x > 0) - (x < 0)
 
+
 def near_zero(n: float, tol: float = 1e-12) -> bool:
     return -tol < n < tol
+
 
 class AABB:
     def __init__(self, min_x: float, min_y: float, max_x: float, max_y: float) -> None:
@@ -33,25 +35,27 @@ class AABB:
         self.min_y: float = min_y
         self.max_x: float = max_x
         self.max_y: float = max_y
-    
+
     def is_point_inside(self, point: Vec2) -> bool:
         return self.min_x <= point.x <= self.max_x and self.min_y <= point.y <= self.max_y
-    
+
     def is_overlap(self, aabb: AABB) -> bool:
         return not (
-            aabb.min_x > self.max_x or 
-            aabb.min_y > self.max_y or 
-            aabb.max_x < self.min_x or 
-            aabb.max_y < self.min_y
-            )
-    
+            aabb.min_x > self.max_x
+            or aabb.min_y > self.max_y
+            or aabb.max_x < self.min_x
+            or aabb.max_y < self.min_y
+        )
+
     def expanded(self, margin: float) -> AABB:
-        return AABB(self.min_x - margin, self.min_y - margin, self.max_x + margin, self.max_y + margin)
+        return AABB(
+            self.min_x - margin, self.min_y - margin, self.max_x + margin, self.max_y + margin
+        )
 
     @classmethod
     def from_circle(cls, center: Vec2, radius: float) -> AABB:
         return cls(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
-    
+
     @classmethod
     def from_vertices(cls, vertices: list[Vec2]):
         min_x: float = float("inf")
@@ -64,7 +68,7 @@ class AABB:
             min_y = min(min_y, vertex.y)
             max_x = max(max_x, vertex.x)
             max_y = max(max_y, vertex.y)
-        
+
         return cls(min_x, min_y, max_x, max_y)
 
 
@@ -72,19 +76,19 @@ class AABB:
 class Vec2:
     x: float
     y: float
-    
+
     def __mul__(self, a: float) -> Vec2:
         return Vec2(a * self.x, a * self.y)
 
     def __rmul__(self, a: float) -> Vec2:
         return Vec2(a * self.x, a * self.y)
-    
+
     def __truediv__(self, a: float) -> Vec2:
         return Vec2(self.x / a, self.y / a)
 
     def __add__(self, other: Vec2) -> Vec2:
         return Vec2(self.x + other.x, self.y + other.y)
-    
+
     def __sub__(self, other: Vec2) -> Vec2:
         return Vec2(self.x - other.x, self.y - other.y)
 
@@ -110,7 +114,7 @@ class Vec2:
         return self.x**2 + self.y**2
 
     def dist_square(self, other: Vec2) -> float:
-        return (self.x - other.x)**2 + (self.y - other.y)**2
+        return (self.x - other.x) ** 2 + (self.y - other.y) ** 2
 
     def cross(self, other: Vec2) -> float:
         return self.x * other.y - other.x * self.y
@@ -130,7 +134,7 @@ class Vec2:
     @classmethod
     def zero(cls) -> Vec2:
         return cls(0, 0)
-    
+
 
 def polygon_signed_area(vertices: list[Vec2]) -> float:
     """Positive for counter-clockwise vertices."""

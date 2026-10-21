@@ -4,6 +4,7 @@ Every joint keeps its accumulated impulse between steps for warm starting.
 Rigid constraints correct drift with Baumgarte stabilisation; `hertz > 0`
 makes a constraint soft (Box2D's spring formulation) instead.
 """
+
 import math
 
 from .body import Body
@@ -78,12 +79,23 @@ class _Row:
         self.a, self.b = a, b
         self.total = 0.0
 
-    def setup(self, dt: float, d: Vec2, sa: float, sb: float,
-              hertz: float = 0.0, damping_ratio: float = 0.0) -> float:
+    def setup(
+        self,
+        dt: float,
+        d: Vec2,
+        sa: float,
+        sb: float,
+        hertz: float = 0.0,
+        damping_ratio: float = 0.0,
+    ) -> float:
         """Prepare for this step and warm start; returns the bias rate for the position error."""
         a, b = self.a, self.b
         self.d, self.sa, self.sb = d, sa, sb
-        inv = (a.inv_mass + b.inv_mass) * d.square() + a.inv_inertia * sa * sa + b.inv_inertia * sb * sb
+        inv = (
+            (a.inv_mass + b.inv_mass) * d.square()
+            + a.inv_inertia * sa * sa
+            + b.inv_inertia * sb * sb
+        )
         self.gamma, rate = _softness(hertz, damping_ratio, 1 / inv, dt)
         self.mass = 1 / (inv + self.gamma)
         self._apply(self.total)
@@ -115,8 +127,15 @@ _TURN = Vec2(0, 0)  # `d` of a purely angular row
 class _Limits:
     """Optional lower / upper stops and a motor on one joint coordinate."""
 
-    def __init__(self, a: Body, b: Body, lower: float | None, upper: float | None,
-                 motor_speed: float | None, max_motor: float):
+    def __init__(
+        self,
+        a: Body,
+        b: Body,
+        lower: float | None,
+        upper: float | None,
+        motor_speed: float | None,
+        max_motor: float,
+    ):
         self.lower, self.upper = lower, upper
         self.motor_speed, self.max_motor = motor_speed, max_motor
         self._lower, self._upper, self._motor = _Row(a, b), _Row(a, b), _Row(a, b)
@@ -149,9 +168,18 @@ class RevoluteJoint(Joint):
     speed using at most `max_motor_torque`.
     """
 
-    def __init__(self, a: Body, b: Body, anchor, *, lower: float | None = None, upper: float | None = None,
-                 motor_speed: float | None = None, max_motor_torque: float = math.inf,
-                 collide_connected: bool = False):
+    def __init__(
+        self,
+        a: Body,
+        b: Body,
+        anchor,
+        *,
+        lower: float | None = None,
+        upper: float | None = None,
+        motor_speed: float | None = None,
+        max_motor_torque: float = math.inf,
+        collide_connected: bool = False,
+    ):
         super().__init__(a, b, anchor, anchor, collide_connected)
         self.reference = b.angle - a.angle
         self.limits = _Limits(a, b, lower, upper, motor_speed, max_motor_torque)
@@ -193,8 +221,18 @@ class DistanceJoint(Joint):
     `hertz > 0` turns the rod into a spring with that natural frequency.
     """
 
-    def __init__(self, a: Body, b: Body, anchor_a, anchor_b, *, length: float | None = None,
-                 hertz: float = 0.0, damping_ratio: float = 0.0, collide_connected: bool = False):
+    def __init__(
+        self,
+        a: Body,
+        b: Body,
+        anchor_a,
+        anchor_b,
+        *,
+        length: float | None = None,
+        hertz: float = 0.0,
+        damping_ratio: float = 0.0,
+        collide_connected: bool = False,
+    ):
         super().__init__(a, b, anchor_a, anchor_b, collide_connected)
         self.length = (Vec2(*anchor_b) - Vec2(*anchor_a)).length() if length is None else length
         self.hertz, self.damping_ratio = hertz, damping_ratio
@@ -221,9 +259,19 @@ class PrismaticJoint(Joint):
     using at most `max_motor_force`.
     """
 
-    def __init__(self, a: Body, b: Body, anchor, axis, *, lower: float | None = None,
-                 upper: float | None = None, motor_speed: float | None = None,
-                 max_motor_force: float = math.inf, collide_connected: bool = False):
+    def __init__(
+        self,
+        a: Body,
+        b: Body,
+        anchor,
+        axis,
+        *,
+        lower: float | None = None,
+        upper: float | None = None,
+        motor_speed: float | None = None,
+        max_motor_force: float = math.inf,
+        collide_connected: bool = False,
+    ):
         super().__init__(a, b, anchor, anchor, collide_connected)
         self.local_axis = Vec2(*axis).normalized().rotate(-a.angle)
         self.reference = b.angle - a.angle
@@ -260,8 +308,15 @@ class MouseJoint(Joint):
     (default 1000 x the body's mass).
     """
 
-    def __init__(self, body: Body, anchor=None, *, hertz: float = 5.0, damping_ratio: float = 0.7,
-                 max_force: float | None = None):
+    def __init__(
+        self,
+        body: Body,
+        anchor=None,
+        *,
+        hertz: float = 5.0,
+        damping_ratio: float = 0.7,
+        max_force: float | None = None,
+    ):
         anchor = body.pos if anchor is None else Vec2(*anchor)
         self.a, self.b = None, body
         self.local_b = body.to_local(anchor)
@@ -300,7 +355,7 @@ class MouseJoint(Joint):
         b = self.b
         old = self._total
         total = old + _solve2(self._k, -(b._velocity(self._rb) + self._bias + old * self._gamma))
-        if total.square() > self._limit ** 2:
+        if total.square() > self._limit**2:
             total = total.normalized() * self._limit
         self._total = total
         b._push(self._rb, total - old)
