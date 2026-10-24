@@ -1,5 +1,7 @@
 # pure-py-engine
 
+<img src="docs/media/demo.gif" width="640" alt="The demo scene for five seconds (shapes fall and settle, a chain swings, a windmill turns), then Newton's cradle">
+
 A 2D rigid-body physics engine in plain Python. The `engine` package has no dependencies; the pygame-ce demo and check scenes live in `main.py`.
 
 - Shapes: circles and convex polygons, separating-axis collision with Box2D-style edge clipping (up to two contact points, each with its own depth).
@@ -87,5 +89,6 @@ engine/joints.py     revolute, weld, distance, prismatic, mouse joints; limits a
 engine/world.py      World: broadphase, islands and sleeping, solver loop
 main.py              pygame demo: Camera, check scenes and their readouts, drawing, input, --save
 docs/                one frame of each scene, from main.py --save docs
+docs/media/          demo.gif and the script that renders it (docs/media/README.md)
 test_engine.py       geometry, SAT, response, conservation, stacking, sleeping, tunnelling, each joint, the demo scene
 ```
