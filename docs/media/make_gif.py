@@ -9,10 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-import pygame  # noqa: E402
-from PIL import Image  # noqa: E402
+import pygame
+from PIL import Image
 
-from main import DT, SCENES, Camera, draw  # noqa: E402
+from main import DT, SCENES, Camera, draw
 
 SIZE = 640, 480
 EVERY = 3  # 60 Hz physics, 20 fps GIF
